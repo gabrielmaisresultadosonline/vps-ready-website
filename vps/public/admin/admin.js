@@ -2,6 +2,7 @@
   const $ = (s, r = document) => r.querySelector(s);
   const API = '../api';
   const brl = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const troco = (o) => (+o.change_for > 0 ? `<div class="troco">💵 Troco para ${brl(o.change_for)} → <b>levar ${brl(o.change_for - o.total)}</b></div>` : /dinheiro/i.test(o.payment_method || '') && o.source !== 'manual' ? '<div class="muted">💵 Sem troco</div>' : '');
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const src = (u) => (!u ? '' : /^(https?:|data:)/.test(u) ? u : '../' + u);
   const dt = (d) => new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
@@ -162,6 +163,7 @@
           <div class="items">${o.items.map((i) => `${i.quantity}× ${esc(i.name)}`).join(' · ')}</div>
           ${o.notes ? `<div class="muted">Obs: ${esc(o.notes)}</div>` : ''}
           <div class="row"><b>${brl(o.total)}</b><span class="muted">${esc(o.payment_method || '')} · há ${mins(o.created_at)} min</span></div>
+          ${troco(o)}
           ${o.status === 'saiu' && o.out_for_delivery_at ? `<div class="muted">🛵 Saiu há ${mins(o.out_for_delivery_at)} min · baixa automática em ${Math.max(0, d.auto_deliver_minutes - mins(o.out_for_delivery_at))} min</div>` : ''}
           <div class="actions">${NEXT[o.status] ? `<button class="btn btn-primary btn-sm" data-go="${NEXT[o.status][0]}">${NEXT[o.status][1]}</button>` : ''}
             <select class="btn btn-ghost btn-sm" data-set><option value="">Alterar…</option>${Object.entries(STATUS).filter(([k]) => k !== o.status).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join('')}</select>
@@ -191,7 +193,7 @@
             <td>${esc(o.customer_name)}<br><span class="muted">${esc(o.customer_phone || '')}<br>${esc(o.neighborhood_name || '')} ${esc(o.address || '')}</span></td>
             <td>${o.items.map((i) => `${i.quantity}× ${esc(i.name)}`).join('<br>')}</td>
             <td>Produtos ${brl(o.subtotal)}<br>Entrega ${brl(o.delivery_fee)}<br><b>Total ${brl(o.total)}</b><br><span class="muted">Custo ${brl(o.cost)} · Lucro ${brl(o.subtotal - o.cost)}</span></td>
-            <td>${pill(o.status)}</td><td><span class="pill ${o.payment_status === 'pago' ? 'ok' : ''}">${o.payment_status}</span><br><span class="muted">${esc(o.payment_method || '')}</span></td>
+            <td>${pill(o.status)}</td><td><span class="pill ${o.payment_status === 'pago' ? 'ok' : ''}">${o.payment_status}</span><br><span class="muted">${esc(o.payment_method || '')}</span>${troco(o)}</td>
             <td><div class="actions">
               <select data-status="${o.id}" class="btn btn-ghost btn-sm">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${k === o.status ? 'selected' : ''}>${v[0]}</option>`).join('')}</select>
               ${o.status !== 'cancelado' ? `<button class="btn btn-ghost btn-sm" data-pay="${o.id}" data-cur="${o.payment_status}" data-st="${o.status}">${o.payment_status === 'pago' ? 'Marcar pendente' : 'Marcar pago'}</button>` : ''}
@@ -311,10 +313,10 @@
       view.innerHTML = `<div class="toolbar"><button class="btn btn-primary" id="new">+ Novo produto</button><input class="search" id="q" placeholder="Buscar…"></div><div id="list"></div>`;
       const render = () => {
         const t = $('#q').value.toLowerCase();
-        $('#list').innerHTML = `<div class="table-wrap"><table><thead><tr><th></th><th>Produto</th><th>Categoria</th><th>Preço</th><th>Estoque</th><th>Status</th><th></th></tr></thead><tbody>
+        $('#list').innerHTML = `<div class="table-wrap"><table><thead><tr><th></th><th>Produto</th><th>Categoria</th><th>Preço</th><th>Estoque</th><th>Estoque mín.</th><th>Status</th><th></th></tr></thead><tbody>
         ${prods.filter((p) => p.name.toLowerCase().includes(t)).map((p) => `<tr><td>${p.image ? `<img src="${esc(src(p.image))}" style="width:48px;height:48px;object-fit:cover;border-radius:8px">` : ''}</td>
           <td><b>${esc(p.name)}</b>${p.featured ? ' <span class="pill pink">destaque</span>' : ''}<br><span class="muted">${esc(p.description || '')}</span></td><td>${esc(p.category_name || '')}</td>
-          <td>${brl(p.sale_price)}${+p.promo_price ? `<br><span class="pill pink">promo ${brl(p.promo_price)}</span>` : ''}</td><td>${p.stock_quantity}</td>
+          <td>${brl(p.sale_price)}${+p.promo_price ? `<br><span class="pill pink">promo ${brl(p.promo_price)}</span>` : ''}</td><td>${p.stock_quantity}${p.stock_quantity == 0 ? ' <span class="pill bad">ESGOTADO</span>' : p.stock_quantity <= p.minimum_stock ? ' <span class="pill warn">BAIXO</span>' : ''}</td><td>${p.minimum_stock ?? 0}</td>
           <td><span class="pill ${p.status === 'ativo' ? 'ok' : p.status === 'rascunho' ? '' : 'warn'}">${p.status}</span></td>
           <td><button class="btn btn-ghost btn-sm" data-edit="${p.id}">Editar</button></td></tr>`).join('')}</tbody></table></div>`;
       };
@@ -440,7 +442,26 @@
   function newOrderAlert() {
     if (soundOn) ding();
     const b = $('#newOrder'); b.classList.add('show'); clearTimeout(b._t); b._t = setTimeout(() => b.classList.remove('show'), 12000);
+    showOrderPopup();
     document.title = '🔔 NOVO PEDIDO — Painel'; setTimeout(() => (document.title = 'Painel — No Silva Drinks'), 15000);
+  }
+  let popupDing;
+  async function showOrderPopup() {
+    try {
+      const d = await api('/admin/orders/live'), o = d.orders.filter((x) => x.source === 'site').sort((a, b) => b.id - a.id)[0]; if (!o) return;
+      let m = $('#orderPopup'); if (!m) { m = document.createElement('div'); m.id = 'orderPopup'; m.className = 'order-pop'; document.body.appendChild(m); }
+      m.innerHTML = `<div class="order-pop-box"><div class="order-pop-h">🔔 NOVO PEDIDO #${String(o.order_number).padStart(6, '0')}</div>
+        <div><b>${esc(o.customer_name)}</b> <span class="muted">${esc(o.customer_phone || '')}</span></div>
+        <div class="muted">${esc(o.neighborhood_name || '')} · ${esc(o.address || '')}</div>
+        <div class="items">${o.items.map((i) => `${i.quantity}× ${esc(i.name)}`).join('<br>')}</div>
+        ${o.notes ? `<div class="muted">Obs: ${esc(o.notes)}</div>` : ''}
+        <div class="row"><span>Total</span><b style="font-size:1.4rem">${brl(o.total)}</b></div>
+        <div class="row"><span>Pagamento</span><b>${esc(o.payment_method || '—')}</b></div>${troco(o)}
+        <div class="actions"><a class="btn btn-primary" href="#aovivo" data-popclose>VER PEDIDO</a><button class="btn btn-ghost" data-popclose>Fechar</button></div></div>`;
+      m.classList.add('show');
+      clearInterval(popupDing); popupDing = setInterval(() => soundOn && ding(), 6000);
+      m.onclick = (e) => { if (e.target === m || e.target.closest('[data-popclose]')) { m.classList.remove('show'); clearInterval(popupDing); } };
+    } catch {}
   }
   async function watch() {
     try {

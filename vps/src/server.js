@@ -152,10 +152,11 @@ app.post('/api/public/orders', wrap(async (req, res) => {
        ON CONFLICT (phone) DO UPDATE SET name=EXCLUDED.name, neighborhood_id=EXCLUDED.neighborhood_id, street=EXCLUDED.street,
          number=EXCLUDED.number, complement=EXCLUDED.complement, reference=EXCLUDED.reference, last_order_at=now()
        RETURNING id`, [name, phone, nb.id, b.street, b.number, b.complement || null, b.reference || null])).rows[0];
+    const changeFor = /dinheiro/i.test(b.payment_method || '') && num(b.change_for) > total ? num(b.change_for) : null;
     const o = (await client.query(
-      `INSERT INTO orders (customer_id,customer_name,customer_phone,neighborhood_name,address,subtotal,delivery_fee,total,payment_method,notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,order_number`,
-      [cust.id, name, phone, nb.name, addr, subtotal, fee, total, b.payment_method || null, String(b.notes || '').slice(0, 500) || null])).rows[0];
+      `INSERT INTO orders (customer_id,customer_name,customer_phone,neighborhood_name,address,subtotal,delivery_fee,total,payment_method,notes,change_for)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id,order_number`,
+      [cust.id, name, phone, nb.name, addr, subtotal, fee, total, b.payment_method || null, String(b.notes || '').slice(0, 500) || null, changeFor])).rows[0];
     for (const l of lines) await client.query(
       'INSERT INTO order_items (order_id,product_id,product_name_snapshot,quantity,unit_price,unit_cost_snapshot) VALUES ($1,$2,$3,$4,$5,$6)',
       [o.id, l.p.id, l.p.name, l.qty, l.price, l.p.current_cost]);
@@ -171,6 +172,7 @@ app.post('/api/public/orders', wrap(async (req, res) => {
       '*PRODUTOS:*', ...lines.map((l) => `${l.qty}x ${l.p.name} — ${brl(l.price * l.qty)}`), '',
       `Subtotal: ${brl(subtotal)}`, `Entrega: ${fee ? brl(fee) : 'Grátis'}`, `*TOTAL: ${brl(total)}*`,
       b.payment_method ? `Pagamento: ${b.payment_method}` : null,
+      changeFor ? `Troco para: ${brl(changeFor)} → levar troco de *${brl(changeFor - total)}*` : (/dinheiro/i.test(b.payment_method || '') ? 'Não precisa de troco' : null),
       b.notes ? `\nObservações: ${b.notes}` : null, '', 'Aguardamos confirmação!',
     ].filter((x) => x !== null).join('\n');
     res.json({ order_number: o.order_number, total, whatsapp_url: `https://wa.me/${onlyDigits(s.whatsapp)}?text=${encodeURIComponent(msg)}` });
@@ -364,7 +366,7 @@ A.delete('/orders/:id', wrap(async (req, res) => {
 A.get('/orders/live', wrap(async (req, res) => {
   const tz = process.env.TZ_STORE || 'America/Sao_Paulo';
   const [rows, s, last] = await Promise.all([
-    q(`SELECT o.id,o.order_number,o.customer_name,o.customer_phone,o.neighborhood_name,o.address,o.total,o.payment_method,o.payment_status,o.status,o.source,o.notes,
+    q(`SELECT o.id,o.order_number,o.customer_name,o.customer_phone,o.neighborhood_name,o.address,o.total,o.payment_method,o.payment_status,o.status,o.source,o.notes,o.change_for,o.subtotal,o.delivery_fee,
         o.lat,o.lng,o.created_at,o.out_for_delivery_at,o.delivered_at,
         COALESCE(json_agg(json_build_object('name',i.product_name_snapshot,'quantity',i.quantity)) FILTER (WHERE i.id IS NOT NULL),'[]') items
        FROM orders o LEFT JOIN order_items i ON i.order_id=o.id

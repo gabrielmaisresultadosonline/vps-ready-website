@@ -90,3 +90,6 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS out_for_delivery_at TIMESTAMPTZ;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
 INSERT INTO settings (key,value) VALUES ('store_address',''),('store_city','São Leopoldo, RS'),('store_lat',''),('store_lng',''),('auto_deliver_minutes','40')
 ON CONFLICT (key) DO NOTHING;
+
+-- Troco para pagamento em dinheiro
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS change_for NUMERIC(12,2);

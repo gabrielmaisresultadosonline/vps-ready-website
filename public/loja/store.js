@@ -84,26 +84,38 @@
       <div class="field"><label>Número *</label><input name="number" required value="${v('number')}"></div>
       <div class="field"><label>Complemento</label><input name="complement" value="${v('complement')}"></div>
       <div class="field"><label>Referência</label><input name="reference" value="${v('reference')}"></div>
-      <div class="field full"><label>Forma de pagamento</label><select name="payment_method">${pm.map((p) => `<option ${saved.payment_method === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>
+      <div class="field full"><label>Forma de pagamento *</label><div class="pay-opts">${pm.map((p, k) => `<label class="pay-opt"><input type="radio" name="payment_method" value="${esc(p)}" ${(saved.payment_method ? saved.payment_method === p : k === 0) ? 'checked' : ''}><span>${/pix/i.test(p) ? '⚡' : /dinheiro/i.test(p) ? '💵' : '💳'} ${esc(p)}</span></label>`).join('')}</div></div>
+      <div class="field full" id="cashBox" hidden><label>Precisa de troco?</label><div class="pay-opts"><label class="pay-opt"><input type="radio" name="need_change" value="0" checked><span>Não preciso</span></label><label class="pay-opt"><input type="radio" name="need_change" value="1"><span>Sim, preciso</span></label></div>
+        <div id="changeBox" hidden style="margin-top:8px"><label>Troco para quanto?</label><input name="change_for" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Ex.: 100"><div id="changeCalc" class="change-calc"></div></div></div>
       <div class="field full"><label>Observações</label><textarea name="notes" rows="2" placeholder="Ex.: troco para R$ 50"></textarea></div>
     </form>`;
-    const upd = () => {
+    const upd = (e) => {
       const f = $('#checkout'), nb = nbs.find((n) => n.id == f.neighborhood_id.value), st = subtotal(), free = +S.settings.free_delivery_above || 0;
       const fee = nb ? (free && st >= free ? 0 : +nb.delivery_fee) : null;
-      $('#drawerFoot').innerHTML = `<div class="row"><span>Subtotal</span><span>${brl(st)}</span></div>
+      const total = st + (fee || 0), pmv = (f.querySelector('[name=payment_method]:checked') || {}).value || '';
+      const cash = /dinheiro/i.test(pmv), need = cash && f.querySelector('[name=need_change]:checked').value === '1';
+      $('#cashBox').hidden = !cash; $('#changeBox').hidden = !need;
+      const cf = +f.change_for.value || 0;
+      $('#changeCalc').innerHTML = !need || !cf ? '' : cf < total ? `<span class="bad">O valor precisa ser maior que o total (${brl(total)})</span>` : `Total ${brl(total)} · você paga ${brl(cf)} · <b>troco: ${brl(cf - total)}</b>`;
+      if (e && e.type === 'input') return;
+      const html = `<div class="row"><span>Subtotal</span><span>${brl(st)}</span></div>
         <div class="row"><span>Taxa de entrega</span><span>${fee === null ? 'selecione o bairro' : fee ? brl(fee) : 'Grátis'}</span></div>
         <div class="row total"><span>TOTAL</span><span>${brl(st + (fee || 0))}</span></div>
         <button class="btn btn-primary" data-send>ENVIAR PEDIDO NO WHATSAPP</button>
         <button class="btn btn-ghost" data-back>← Voltar ao carrinho</button>`;
+      if ($('#drawerFoot')._h !== html) { $('#drawerFoot').innerHTML = html; $('#drawerFoot')._h = html; }
     };
-    $('#checkout').addEventListener('change', upd); upd();
+    $('#drawerFoot')._h = null; $('#checkout').addEventListener('change', upd); $('#checkout').addEventListener('input', upd); upd();
   }
 
   async function send(btn) {
     const f = $('#checkout'), d = Object.fromEntries(new FormData(f));
-    if (!d.name || !d.phone || !d.neighborhood_id || !d.street || !d.number) return checkoutView('Preencha os campos obrigatórios (*).'), Object.assign(saved, d);
+    if (!d.name || !d.phone || !d.neighborhood_id || !d.street || !d.number || !d.payment_method) return checkoutView('Preencha os campos obrigatórios (*).'), Object.assign(saved, d);
+    if (d.need_change !== '1' || !/dinheiro/i.test(d.payment_method)) delete d.change_for;
+    else { const nb = S.neighborhoods.find((n) => n.id == d.neighborhood_id), st = subtotal(), free = +S.settings.free_delivery_above || 0, tot = st + (free && st >= free ? 0 : +nb.delivery_fee); if (!(+d.change_for > tot)) return alert('Informe um valor de troco maior que o total (' + brl(tot) + ').'); }
+    delete d.need_change;
     btn.disabled = true; btn.textContent = 'Enviando…';
-    const { notes, ...keep } = d; localStorage.setItem('nsd_customer', JSON.stringify(keep)); Object.assign(saved, keep);
+    const { notes, change_for, ...keep } = d; localStorage.setItem('nsd_customer', JSON.stringify(keep)); Object.assign(saved, keep);
     // Abre a janela já no clique (evita bloqueio de pop-up no celular)
     const win = window.open('', '_blank');
     try {

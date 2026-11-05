@@ -159,3 +159,10 @@ h1,h2,h3,.display{font-family:'Bebas Neue','Oswald',Impact,sans-serif;letter-spa
 .steps li.done{color:var(--silver)}.steps li.done span{border-color:var(--pink);background:var(--wine)}
 .steps li.now{color:var(--white)}.steps li.now span{border-color:var(--pink2);background:linear-gradient(135deg,var(--pink),var(--pink2));box-shadow:var(--glow)}
 .eta{font-weight:800;color:var(--pink2)}
+
+.pay-opts{display:flex;flex-wrap:wrap;gap:8px}
+.pay-opt{flex:1 1 90px;cursor:pointer}
+.pay-opt input{position:absolute;opacity:0;pointer-events:none}
+.pay-opt span{display:block;text-align:center;padding:11px 8px;border-radius:12px;border:1.5px solid rgba(255,255,255,.18);font-weight:700;font-size:.9rem}
+.pay-opt input:checked+span{border-color:var(--pink,#ff2e88);background:rgba(255,46,136,.15)}
+.change-calc{margin-top:8px;font-size:.92rem}.change-calc b{color:#3ddc84;font-size:1.05rem}.change-calc .bad{color:#ff6b6b}
