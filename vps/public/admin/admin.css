@@ -96,3 +96,12 @@ tr:hover td{background:rgba(240,0,121,.04)}
 .order-pop-box .row{display:flex;justify-content:space-between;align-items:center}
 .order-pop-box .actions{display:flex;gap:8px}.order-pop-box .actions>*{flex:1;text-align:center}
 @keyframes popin{from{transform:scale(.85);opacity:0}to{transform:none;opacity:1}}
+
+.panel.danger{border-color:rgba(255,80,80,.5)}
+.chk{display:flex;gap:10px;align-items:flex-start;padding:8px 0;cursor:pointer}.chk input{margin-top:4px;width:18px;height:18px;flex:none;accent-color:#ff4d4d}
+.btn-danger{background:#d93636;color:#fff;border:0}.btn-danger:hover{background:#ff4d4d}
+.tut-list{display:grid;gap:10px;margin-top:14px}
+.tut{background:var(--card,#16161d);border:1px solid rgba(255,46,136,.25);border-radius:14px;overflow:hidden}
+.tut summary{cursor:pointer;padding:14px 16px;font-weight:800;display:flex;gap:10px;align-items:center;list-style:none}
+.tut summary::after{content:'+';margin-left:auto;font-size:1.3rem;color:var(--pink,#ff2e88)}.tut[open] summary::after{content:'−'}
+.tut-body{padding:0 16px 16px;line-height:1.6}.tut-body ul,.tut-body ol{padding-left:20px;margin:6px 0 12px}.tut-body li{margin:4px 0}

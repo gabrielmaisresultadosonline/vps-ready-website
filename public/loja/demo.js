@@ -136,6 +136,16 @@
     if (!path.startsWith('admin/')) err('Não encontrado', 404);
     path = path.slice(6);
     if (path === 'upload') err('Na pré-visualização use a opção de URL da imagem');
+    if (path === 'reset') {
+      if (body.password !== LOGIN.password) err('Senha incorreta', 401);
+      var w = body.what || []; if (!w.length) err('Escolha o que deseja zerar');
+      var has = function (k) { return w.indexOf(k) >= 0 || (w.indexOf('produtos') >= 0 && (k === 'estoque' || k === 'pedidos')); };
+      if (has('financeiro')) db.finance = [];
+      if (has('pedidos')) { db.finance = db.finance.filter(function (f) { return !f.order_id; }); db.orders = []; db.customers = []; db.seq.num = 0; }
+      if (has('estoque')) { db.finance = db.finance.filter(function (f) { return !f.stock_movement_id; }); db.movements = []; db.products.forEach(function (p) { p.stock_quantity = 0; }); }
+      if (has('produtos')) db.products = [];
+      return { ok: true };
+    }
     if (path === 'settings') { if (method === 'PUT') Object.assign(s, body); return s; }
     if ((m = path.match(/^categories(?:\/(\d+))?$/))) {
       if (method === 'GET') return db.categories;

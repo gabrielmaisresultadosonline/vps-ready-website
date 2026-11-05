@@ -223,6 +223,23 @@ A.post('/upload', upload.single('file'), (req, res) => {
 
 // Configurações
 A.get('/settings', wrap(async (req, res) => res.json(await getSettings())));
+// Zerar dados (exige senha do admin)
+A.post('/reset', wrap(async (req, res) => {
+  const { password, what = [] } = req.body, w = new Set(what);
+  const u = (await q('SELECT * FROM admin_users WHERE id=$1', [req.user.id])).rows[0];
+  if (!u || !(await bcrypt.compare(String(password || ''), u.password_hash))) throw bad('Senha incorreta', 401);
+  if (!w.size) throw bad('Escolha o que deseja zerar');
+  if (w.has('produtos')) { w.add('estoque'); w.add('pedidos'); }
+  await tx(async (c) => {
+    if (w.has('financeiro')) await c.query('DELETE FROM finance_entries');
+    if (w.has('pedidos')) await c.query('DELETE FROM finance_entries WHERE order_id IS NOT NULL');
+    if (w.has('estoque')) { await c.query('DELETE FROM finance_entries WHERE stock_movement_id IS NOT NULL'); await c.query('DELETE FROM stock_movements'); await c.query('UPDATE products SET stock_quantity=0'); }
+    if (w.has('pedidos')) { await c.query('UPDATE stock_movements SET order_id=NULL'); await c.query('DELETE FROM order_items'); await c.query('DELETE FROM orders'); await c.query('DELETE FROM customers'); await c.query('ALTER SEQUENCE orders_order_number_seq RESTART WITH 1'); }
+    if (w.has('produtos')) await c.query('DELETE FROM products');
+    await c.query('INSERT INTO audit_log(user_name,action,details) VALUES($1,$2,$3)', [req.user.name, 'zerar', [...w].join(',')]);
+  });
+  res.json({ ok: true });
+}));
 A.put('/settings', wrap(async (req, res) => {
   const before = await getSettings(), b = { ...(req.body || {}) };
   const addrChanged = (b.store_address !== undefined && b.store_address !== before.store_address) || (b.store_city !== undefined && b.store_city !== before.store_city);
