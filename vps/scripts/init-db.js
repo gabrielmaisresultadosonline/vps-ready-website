@@ -8,7 +8,7 @@ const { Pool } = require('pg');
 (async () => {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   await pool.query(fs.readFileSync(path.join(__dirname, '..', 'db', 'schema.sql'), 'utf8'));
-  const email = (process.env.ADMIN_EMAIL || 'admin@nosilva.com').toLowerCase();
+  const email = (process.env.ADMIN_EMAIL || 'mro@gmail.com').toLowerCase();
   const pass = process.env.ADMIN_PASSWORD;
   if (!pass || pass.length < 8) throw new Error('Defina ADMIN_PASSWORD (8+ caracteres) no .env');
   await pool.query(

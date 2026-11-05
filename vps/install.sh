@@ -32,12 +32,12 @@ fi
 if [ ! -f .env ]; then
   DB_PASS="$(openssl rand -hex 16)"
   JWT="$(openssl rand -hex 32)"
-  ADMIN_PASS="$(openssl rand -base64 12 | tr -dc 'A-Za-z0-9' | head -c 12)"
+  ADMIN_PASS="guilherme2129"
   cat > .env <<EOF
 PORT=$PORT
 DATABASE_URL=postgresql://$DB_USER:$DB_PASS@127.0.0.1:5432/$DB_NAME
 JWT_SECRET=$JWT
-ADMIN_EMAIL=admin@nosilva.com
+ADMIN_EMAIL=mro@gmail.com
 ADMIN_PASSWORD=$ADMIN_PASS
 TZ_STORE=America/Sao_Paulo
 EOF
@@ -67,7 +67,7 @@ pm2 startup systemd -u "$(whoami)" --hp "$HOME" >/dev/null 2>&1 || true
 echo
 echo "================ PRONTO ================"
 echo "Site rodando internamente em: http://127.0.0.1:$PORT"
-echo "Login do painel: admin@nosilva.com"
+echo "Login do painel: mro@gmail.com"
 echo "Senha inicial:   $ADMIN_PASS   (troque em Configurações)"
 echo
 echo "Falta só ligar um endereço ao site. Veja o LEIA-ME.md, passo 3"
