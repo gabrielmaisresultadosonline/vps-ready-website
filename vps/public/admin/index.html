@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Painel — No Silva Drinks</title>
+<meta name="theme-color" content="#050307">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter+Tight:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="admin.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script>
+</head>
+<body>
+<div id="login" class="login" hidden>
+  <form id="loginForm" class="login-box">
+    <div class="brand-name" style="font-size:40px;text-align:center">NO SILVA <b>DRINKS</b></div>
+    <p style="text-align:center;color:var(--gray)">Painel administrativo</p>
+    <div id="loginErr"></div>
+    <div class="field"><label>E-mail</label><input name="email" type="email" required autocomplete="username"></div>
+    <div class="field"><label>Senha</label><input name="password" type="password" required autocomplete="current-password"></div>
+    <button class="btn btn-primary">ENTRAR</button>
+  </form>
+</div>
+
+<div id="app" class="admin" hidden>
+  <aside class="side" id="side">
+    <div class="side-brand brand-name">NO SILVA <b>DRINKS</b></div>
+    <nav id="nav">
+      <a href="#dashboard">📊 Dashboard</a>
+      <a href="#pedidos">🧾 Pedidos / Vendas</a>
+      <a href="#venda">➕ Venda manual</a>
+      <a href="#baixa">⚡ Baixa rápida</a>
+      <a href="#estoque">📦 Estoque</a>
+      <a href="#produtos">🍾 Produtos</a>
+      <a href="#categorias">🗂️ Categorias</a>
+      <a href="#bairros">📍 Bairros e taxas</a>
+      <a href="#financeiro">💰 Financeiro</a>
+      <a href="#clientes">👥 Clientes</a>
+      <a href="#configuracoes">⚙️ Configurações</a>
+    </nav>
+    <div class="side-foot"><a href="../" target="_blank">↗ Ver loja</a><button class="btn btn-ghost" id="logout">Sair</button></div>
+  </aside>
+  <div class="side-overlay" id="sideOverlay"></div>
+  <div class="main">
+    <header class="topbar"><button class="btn btn-ghost icon-btn" id="menuBtn" aria-label="Menu">☰</button><h1 id="pageTitle">Dashboard</h1><span class="spacer"></span><span id="userName" class="muted"></span></header>
+    <section id="view" class="view"></section>
+  </div>
+</div>
+<div class="modal" id="modal"><div class="modal-box"><div class="modal-head"><h2 id="modalTitle"></h2><button class="close" data-mclose>×</button></div><div id="modalBody"></div></div></div>
+<div class="toast" id="toast"></div>
+<script src="admin.js"></script>
+</body>
+</html>

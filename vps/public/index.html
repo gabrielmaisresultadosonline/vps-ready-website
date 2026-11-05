@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>No Silva Drinks — Delivery de bebidas em São Leopoldo</title>
+<meta name="description" content="Peça cervejas, destilados, energéticos, gelo e muito mais. Delivery rápido na Campina e região de São Leopoldo.">
+<meta property="og:title" content="No Silva Drinks — Delivery de bebidas">
+<meta property="og:description" content="Sua bebida favorita chega até você. Peça pelo site e finalize no WhatsApp.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#050307">
+<link rel="icon" id="favicon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter+Tight:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="header">
+  <div class="container">
+    <a href="#" class="brand" id="brand">
+      <img id="logo" alt="" hidden>
+      <div class="brand-txt"><span class="brand-name">NO SILVA <b>DRINKS</b></span><span class="brand-sub" id="tagline">Você da Campina, São Leopoldo</span></div>
+    </a>
+    <div class="spacer"></div>
+    <span class="status" id="status"><i></i><span>Carregando…</span></span>
+    <a class="btn btn-ghost" id="waBtn" target="_blank" rel="noopener" aria-label="WhatsApp">💬 <span class="wa-txt">WhatsApp</span></a>
+    <button class="btn btn-ghost icon-btn" id="cartBtn" aria-label="Abrir carrinho">🛒<span class="badge" id="cartCount">0</span></button>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <div>
+      <h1 id="heroTitle">SUA BEBIDA FAVORITA <em>CHEGA ATÉ VOCÊ!</em></h1>
+      <p id="heroSub">Escolha, peça e receba sem sair de casa.</p>
+      <a href="#produtos" class="btn btn-primary">FAZER MEU PEDIDO →</a>
+      <div class="hero-meta"><span>🚚 Entrega rápida</span><span>❄️ Bebida gelada</span><span>💳 Pix, dinheiro ou cartão</span></div>
+    </div>
+    <div class="hero-img"><img id="heroImg" src="hero.jpg" alt="Bebidas geladas com iluminação neon"></div>
+  </div>
+</section>
+
+<main class="section" id="produtos">
+  <div class="container">
+    <div class="section-head">
+      <h2>NOSSO <span>CARDÁPIO</span></h2>
+      <input class="search" id="search" type="search" placeholder="Buscar produto…" aria-label="Buscar produto">
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <div class="grid" id="grid"></div>
+  </div>
+</main>
+
+<footer class="footer"><div class="container"><b>NO SILVA DRINKS</b> · <span id="footTag"></span><br>Venda proibida para menores de 18 anos. Se beber, não dirija.</div></footer>
+
+<button class="btn btn-primary fab" id="fab">🛒 VER CARRINHO · <span id="fabTotal">R$ 0,00</span></button>
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer" aria-label="Carrinho">
+  <div class="drawer-head"><h2 id="drawerTitle">SEU CARRINHO</h2><button class="close" id="closeDrawer" aria-label="Fechar">×</button></div>
+  <div class="drawer-body" id="drawerBody"></div>
+  <div class="drawer-foot" id="drawerFoot"></div>
+</aside>
+<div class="toast" id="toast"></div>
+<script src="store.js"></script>
+</body>
+</html>
