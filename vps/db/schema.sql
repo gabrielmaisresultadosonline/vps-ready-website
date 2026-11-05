@@ -82,3 +82,11 @@ INSERT INTO settings (key,value) VALUES
  ('min_order','0'),('free_delivery_above','0'),('show_sold_out','1'),
  ('payment_methods','Pix,Dinheiro,Cartão')
 ON CONFLICT (key) DO NOTHING;
+
+-- Entrega: localização e horários (seguro rodar várias vezes)
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS out_for_delivery_at TIMESTAMPTZ;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
+INSERT INTO settings (key,value) VALUES ('store_address',''),('store_city','São Leopoldo, RS'),('store_lat',''),('store_lng',''),('auto_deliver_minutes','40')
+ON CONFLICT (key) DO NOTHING;

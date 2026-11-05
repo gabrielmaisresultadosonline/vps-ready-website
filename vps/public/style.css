@@ -147,3 +147,15 @@ h1,h2,h3,.display{font-family:'Bebas Neue','Oswald',Impact,sans-serif;letter-spa
   .search{max-width:none}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* Acompanhar pedido */
+.hero-ctas{display:flex;gap:10px;flex-wrap:wrap}
+.muted-s{color:var(--gray);font-size:14px}
+.track-card{border:1px solid var(--line);background:var(--card);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:10px}
+.track-card h3{font-family:'Bebas Neue';font-size:28px;font-weight:400;letter-spacing:.03em}
+.steps{list-style:none;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:0;margin:4px 0}
+.steps li{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;font-size:12px;color:var(--gray);font-weight:700;position:relative}
+.steps li span{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:20px;border:2px solid var(--line);background:var(--bg)}
+.steps li.done{color:var(--silver)}.steps li.done span{border-color:var(--pink);background:var(--wine)}
+.steps li.now{color:var(--white)}.steps li.now span{border-color:var(--pink2);background:linear-gradient(135deg,var(--pink),var(--pink2));box-shadow:var(--glow)}
+.eta{font-weight:800;color:var(--pink2)}

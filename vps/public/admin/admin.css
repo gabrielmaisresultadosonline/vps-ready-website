@@ -62,3 +62,28 @@ tr:hover td{background:rgba(240,0,121,.04)}
   .kpi b{font-size:19px}
   #userName{display:none}
 }
+
+/* Pedidos ao vivo */
+.live-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.live-dot{width:10px;height:10px;border-radius:50%;background:#ef4444;box-shadow:0 0 0 0 rgba(239,68,68,.7);animation:pulse 1.6s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 10px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}
+.live-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px;align-items:start}
+.live-map-wrap{padding:8px;position:sticky;top:12px}
+.live-map{height:min(70vh,640px);border-radius:12px;background:#111}
+.map-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--silver);padding:8px 4px 2px}
+.map-legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.live-list{display:grid;gap:12px;max-height:78vh;overflow:auto;padding-right:4px}
+.live-card{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--pink);border-radius:14px;padding:14px;display:grid;gap:6px;font-size:14px}
+.live-card .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.live-card .ln{font-family:'Bebas Neue';font-size:24px;letter-spacing:.03em}
+.live-card .items{color:var(--white)}
+.live-card.st-aguardando{border-left-color:var(--warn);animation:glowIn 2s ease 3}
+.live-card.st-entregue{border-left-color:var(--ok);opacity:.75}.live-card.st-cancelado{border-left-color:#6b7280;opacity:.5}
+@keyframes glowIn{50%{box-shadow:0 0 28px rgba(245,158,11,.45)}}
+.pin{width:34px;height:34px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--c);border:2px solid #fff;display:grid;place-items:center;box-shadow:0 4px 10px rgba(0,0,0,.5)}
+.pin span{transform:rotate(45deg);color:#fff;font-weight:800;font-size:11px}
+.pin.store{width:40px;height:40px;border-radius:50%;transform:none;background:#fff;font-size:20px;border:3px solid var(--pink)}
+.leaflet-popup-content{color:#111}
+.new-order{position:fixed;top:14px;left:50%;transform:translate(-50%,-150%);z-index:90;background:linear-gradient(135deg,var(--pink),var(--pink2));color:#fff;padding:14px 22px;border-radius:14px;font-weight:800;box-shadow:var(--glow);transition:transform .35s;text-decoration:none}
+.new-order.show{transform:translate(-50%,0)}
+@media (max-width:900px){.live-grid{grid-template-columns:1fr}.live-map-wrap{position:static}.live-map{height:50vh}.live-list{max-height:none}}

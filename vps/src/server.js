@@ -52,6 +52,24 @@ function isOpen(s) {
 }
 const onlyDigits = (s) => String(s || '').replace(/\D/g, '');
 
+// ---------- Mapa: endereço -> coordenadas (OpenStreetMap / Nominatim, gratuito) ----------
+let lastGeo = 0;
+async function geocode(text) {
+  const wait = Math.max(0, lastGeo + 1100 - Date.now()); lastGeo = Date.now() + wait; // máx. 1 por segundo
+  if (wait) await new Promise((r) => setTimeout(r, wait));
+  try {
+    const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=' + encodeURIComponent(text),
+      { headers: { 'User-Agent': 'NoSilvaDrinks/1.0 (delivery)', 'Accept-Language': 'pt-BR' } });
+    const j = await r.json();
+    return j[0] ? { lat: Number(j[0].lat), lng: Number(j[0].lon) } : null;
+  } catch (e) { console.error('geocode', e.message); return null; }
+}
+async function geocodeOrder(id, street, number, neighborhood) {
+  const s = await getSettings(), city = s.store_city || '';
+  const g = (await geocode(`${street}, ${number}, ${neighborhood}, ${city}`)) || (await geocode(`${street}, ${neighborhood}, ${city}`)) || (await geocode(`${neighborhood}, ${city}`));
+  if (g) await q('UPDATE orders SET lat=$1,lng=$2 WHERE id=$3', [g.lat, g.lng, id]);
+}
+
 // ---------- Auth ----------
 function auth(req, res, next) {
   try { req.user = jwt.verify(req.cookies.nsd_token, JWT_SECRET); next(); }
@@ -142,6 +160,7 @@ app.post('/api/public/orders', wrap(async (req, res) => {
       'INSERT INTO order_items (order_id,product_id,product_name_snapshot,quantity,unit_price,unit_cost_snapshot) VALUES ($1,$2,$3,$4,$5,$6)',
       [o.id, l.p.id, l.p.name, l.qty, l.price, l.p.current_cost]);
     await client.query('COMMIT');
+    geocodeOrder(o.id, b.street, b.number, nb.name).catch(() => {});
     const brl = (v) => 'R$ ' + v.toFixed(2).replace('.', ',');
     const fmtPhone = phone.length >= 10 ? `(${phone.slice(-11, -9) || phone.slice(0, 2)}) ${phone.slice(-9, -4)}-${phone.slice(-4)}` : phone;
     const msg = [
@@ -156,6 +175,24 @@ app.post('/api/public/orders', wrap(async (req, res) => {
     ].filter((x) => x !== null).join('\n');
     res.json({ order_number: o.order_number, total, whatsapp_url: `https://wa.me/${onlyDigits(s.whatsapp)}?text=${encodeURIComponent(msg)}` });
   } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
+}));
+
+
+// Cliente consulta o último pedido pelo telefone (mostra só número, status, itens e total)
+const trackHits = new Map();
+app.get('/api/public/track', wrap(async (req, res) => {
+  const ip = req.ip, now = Date.now(), h = (trackHits.get(ip) || []).filter((t) => now - t < 60000);
+  if (h.length >= 15) throw bad('Muitas consultas. Aguarde um minuto.', 429);
+  h.push(now); trackHits.set(ip, h);
+  const phone = onlyDigits(req.query.phone);
+  if (phone.length < 10 || phone.length > 13) throw bad('Informe o telefone com DDD');
+  const o = (await q(`SELECT o.id,o.order_number,o.status,o.total,o.created_at,o.out_for_delivery_at,o.delivered_at,
+      COALESCE(json_agg(json_build_object('name',i.product_name_snapshot,'quantity',i.quantity)) FILTER (WHERE i.id IS NOT NULL),'[]') items
+      FROM orders o LEFT JOIN order_items i ON i.order_id=o.id WHERE right(o.customer_phone,10)=right($1,10)
+      GROUP BY o.id ORDER BY o.id DESC LIMIT 1`, [phone])).rows[0];
+  if (!o) throw bad('Nenhum pedido encontrado para este telefone', 404);
+  const s = await getSettings();
+  delete o.id; res.json({ ...o, auto_deliver_minutes: num(s.auto_deliver_minutes) || 40 });
 }));
 
 // ---------- Admin: transações de estoque ----------
@@ -185,7 +222,13 @@ A.post('/upload', upload.single('file'), (req, res) => {
 // Configurações
 A.get('/settings', wrap(async (req, res) => res.json(await getSettings())));
 A.put('/settings', wrap(async (req, res) => {
-  for (const [k, v] of Object.entries(req.body || {})) await q('INSERT INTO settings(key,value) VALUES($1,$2) ON CONFLICT(key) DO UPDATE SET value=$2', [k, String(v ?? '')]);
+  const before = await getSettings(), b = { ...(req.body || {}) };
+  const addrChanged = (b.store_address !== undefined && b.store_address !== before.store_address) || (b.store_city !== undefined && b.store_city !== before.store_city);
+  if (addrChanged && b.store_address) {
+    const g = await geocode(`${b.store_address}, ${b.store_city ?? before.store_city ?? ''}`);
+    b.store_lat = g ? g.lat : ''; b.store_lng = g ? g.lng : '';
+  }
+  for (const [k, v] of Object.entries(b)) await q('INSERT INTO settings(key,value) VALUES($1,$2) ON CONFLICT(key) DO UPDATE SET value=$2', [k, String(v ?? '')]);
   res.json(await getSettings());
 }));
 
@@ -271,7 +314,9 @@ A.get('/orders', wrap(async (req, res) => {
   res.json(r.rows);
 }));
 const CONFIRMED = ['confirmado', 'preparo', 'saiu', 'entregue'];
+const STATUSES = ['aguardando', ...CONFIRMED, 'cancelado'];
 async function setOrderStatus(c, id, status, user, payment_status) {
+  if (!STATUSES.includes(status)) throw bad('Status inválido');
   const o = (await c.query('SELECT * FROM orders WHERE id=$1 FOR UPDATE', [id])).rows[0];
   if (!o) throw bad('Pedido não encontrado', 404);
   const items = (await c.query('SELECT * FROM order_items WHERE order_id=$1', [id])).rows;
@@ -292,13 +337,52 @@ async function setOrderStatus(c, id, status, user, payment_status) {
       [`Pedido #${o.order_number}`, o.total, o.payment_method, id]);
   }
   if (ps !== 'pago' && o.payment_status === 'pago') await c.query('DELETE FROM finance_entries WHERE order_id=$1', [id]);
-  await c.query('UPDATE orders SET status=$1,payment_status=$2,updated_at=now() WHERE id=$3', [status, ps, id]);
+  await c.query(`UPDATE orders SET status=$1,payment_status=$2,updated_at=now(),
+    out_for_delivery_at=CASE WHEN $1='saiu' AND status<>'saiu' THEN now() WHEN $1 IN ('aguardando','confirmado','preparo') THEN NULL ELSE out_for_delivery_at END,
+    delivered_at=CASE WHEN $1='entregue' AND status<>'entregue' THEN now() WHEN $1<>'entregue' THEN NULL ELSE delivered_at END
+    WHERE id=$3`, [status, ps, id]);
   await c.query('INSERT INTO audit_log(user_name,action,details) VALUES($1,$2,$3)', [user, 'pedido_status', `#${o.order_number} -> ${status}/${ps}`]);
 }
 A.put('/orders/:id', wrap(async (req, res) => {
   await tx((c) => setOrderStatus(c, req.params.id, req.body.status, req.user.name, req.body.payment_status));
   res.json({ ok: true });
 }));
+// Excluir pedido: devolve o estoque e remove o lançamento financeiro antes de apagar
+A.delete('/orders/:id', wrap(async (req, res) => {
+  await tx(async (c) => {
+    const o = (await c.query('SELECT * FROM orders WHERE id=$1 FOR UPDATE', [req.params.id])).rows[0];
+    if (!o) throw bad('Pedido não encontrado', 404);
+    if (o.stock_applied) await setOrderStatus(c, o.id, 'cancelado', req.user.name);
+    await c.query('DELETE FROM finance_entries WHERE order_id=$1', [o.id]);
+    await c.query('UPDATE stock_movements SET order_id=NULL WHERE order_id=$1', [o.id]);
+    await c.query('DELETE FROM orders WHERE id=$1', [o.id]);
+    await c.query('INSERT INTO audit_log(user_name,action,details) VALUES($1,$2,$3)', [req.user.name, 'pedido_excluido', `#${o.order_number}`]);
+  });
+  res.json({ ok: true });
+}));
+// Pedidos do dia para a tela ao vivo + mapa
+A.get('/orders/live', wrap(async (req, res) => {
+  const tz = process.env.TZ_STORE || 'America/Sao_Paulo';
+  const [rows, s, last] = await Promise.all([
+    q(`SELECT o.id,o.order_number,o.customer_name,o.customer_phone,o.neighborhood_name,o.address,o.total,o.payment_method,o.payment_status,o.status,o.source,o.notes,
+        o.lat,o.lng,o.created_at,o.out_for_delivery_at,o.delivered_at,
+        COALESCE(json_agg(json_build_object('name',i.product_name_snapshot,'quantity',i.quantity)) FILTER (WHERE i.id IS NOT NULL),'[]') items
+       FROM orders o LEFT JOIN order_items i ON i.order_id=o.id
+       WHERE (o.created_at AT TIME ZONE $1)::date=(now() AT TIME ZONE $1)::date OR o.status IN ('aguardando','confirmado','preparo','saiu')
+       GROUP BY o.id ORDER BY o.id DESC`, [tz]),
+    getSettings(),
+    q(`SELECT COALESCE(MAX(id),0) id FROM orders WHERE source='site'`),
+  ]);
+  res.json({ orders: rows.rows, last_site_id: last.rows[0].id, auto_deliver_minutes: num(s.auto_deliver_minutes) || 40,
+    store: { address: s.store_address, lat: s.store_lat ? Number(s.store_lat) : null, lng: s.store_lng ? Number(s.store_lng) : null } });
+}));
+A.get('/orders/last', wrap(async (req, res) => res.json((await q(`SELECT COALESCE(MAX(id),0) id FROM orders WHERE source='site'`)).rows[0])));
+A.post('/orders/:id/locate', wrap(async (req, res) => {
+  const lat = Number(req.body.lat), lng = Number(req.body.lng);
+  if (!isFinite(lat) || !isFinite(lng)) throw bad('Coordenadas inválidas');
+  await q('UPDATE orders SET lat=$1,lng=$2 WHERE id=$3', [lat, lng, req.params.id]); res.json({ ok: true });
+}));
+
 A.post('/orders/manual', wrap(async (req, res) => {
   const b = req.body;
   if (!Array.isArray(b.items) || !b.items.length) throw bad('Adicione produtos');
@@ -385,5 +469,15 @@ app.use('/api/admin', A);
 app.get('/admin', (req, res, next) => (req.originalUrl.split('?')[0].endsWith('/') ? next() : res.redirect('admin/')));
 app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', index: 'index.html', redirect: false }));
 app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+// Baixa automática: pedido "a caminho" vira "entregue" após X minutos (padrão 40)
+async function autoDeliver() {
+  try {
+    const mins = num((await getSettings()).auto_deliver_minutes) || 40;
+    const r = await q(`SELECT id FROM orders WHERE status='saiu' AND out_for_delivery_at < now() - ($1 || ' minutes')::interval`, [String(mins)]);
+    for (const o of r.rows) await tx((c) => setOrderStatus(c, o.id, 'entregue', 'automático'));
+  } catch (e) { console.error('autoDeliver', e.message); }
+}
+setInterval(autoDeliver, 60 * 1000);
 
 app.listen(PORT, '127.0.0.1', () => console.log(`No Silva Drinks rodando em http://127.0.0.1:${PORT}`));

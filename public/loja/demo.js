@@ -44,6 +44,9 @@
       var txt = 'Pedido de teste (pré-visualização) — ' + (b.name || '');
       return json({ order_number: n++, whatsapp_url: 'https://wa.me/' + data.settings.whatsapp + '?text=' + encodeURIComponent(txt) });
     }
+    if (u.indexOf('api/public/track') !== -1) {
+      return json({ order_number: 1, status: 'saiu', total: '45.80', created_at: new Date(Date.now() - 25 * 60000).toISOString(), out_for_delivery_at: new Date(Date.now() - 12 * 60000).toISOString(), items: [{ name: 'Cerveja Heineken Long Neck', quantity: 4 }, { name: 'Gelo 5kg', quantity: 1 }], auto_deliver_minutes: 40 });
+    }
     return orig(url, opt);
   };
 })();

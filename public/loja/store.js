@@ -135,6 +135,42 @@
     else if (t.hasAttribute('data-send')) send(t);
     else if (t.hasAttribute('data-close')) closeDrawer();
   });
+  // ---------- Acompanhar pedido pelo telefone ----------
+  const STEPS = [['aguardando', 'Recebido', '📝'], ['preparo', 'Em preparação', '👨‍🍳'], ['saiu', 'A caminho', '🛵'], ['entregue', 'Entregue', '✅']];
+  const stepIdx = (st) => (st === 'confirmado' ? 1 : STEPS.findIndex((x) => x[0] === st));
+  function trackView(msg, o) {
+    view = 'track'; $('#drawerTitle').textContent = 'MEU PEDIDO';
+    let res = '';
+    if (o) {
+      const i = stepIdx(o.status);
+      const eta = o.status === 'saiu' && o.out_for_delivery_at ? Math.max(1, o.auto_deliver_minutes - Math.round((Date.now() - new Date(o.out_for_delivery_at)) / 60000)) : null;
+      res = o.status === 'cancelado'
+        ? `<div class="track-card"><h3>PEDIDO #${String(o.order_number).padStart(6, '0')}</h3><p class="alert">Este pedido foi cancelado. Fale com a gente no WhatsApp.</p></div>`
+        : `<div class="track-card"><h3>PEDIDO #${String(o.order_number).padStart(6, '0')}</h3>
+          <p class="muted-s">Feito em ${new Date(o.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} · ${brl(o.total)}</p>
+          <ol class="steps">${STEPS.map((x, k) => `<li class="${k < i ? 'done' : k === i ? 'now' : ''}"><span>${x[2]}</span>${x[1]}</li>`).join('')}</ol>
+          ${eta ? `<p class="eta">🛵 Seu pedido está a caminho! Chega em até ~${eta} min.</p>` : ''}
+          <p class="muted-s">${o.items.map((it) => `${it.quantity}× ${esc(it.name)}`).join(' · ')}</p></div>`;
+    }
+    $('#drawerBody').innerHTML = `<p class="muted-s">Digite o telefone usado no pedido para ver como ele está.</p>
+      <form id="trackForm" class="field"><label>WhatsApp com DDD</label><input name="phone" type="tel" inputmode="tel" required placeholder="(51) 99999-9999" value="${esc(saved.phone || '')}"></form>
+      ${msg ? `<p class="alert">${esc(msg)}</p>` : ''}${res}`;
+    $('#drawerFoot').innerHTML = '<button class="btn btn-primary" data-track>BUSCAR MEU ÚLTIMO PEDIDO</button><button class="btn btn-ghost" data-close>Fechar</button>';
+    $('#trackForm').onsubmit = (e) => { e.preventDefault(); doTrack(); };
+  }
+  async function doTrack() {
+    const phone = $('#trackForm [name=phone]').value;
+    try {
+      const r = await fetch('api/public/track?phone=' + encodeURIComponent(phone)); const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Não foi possível buscar');
+      saved.phone = phone; trackView('', j);
+      $('#trackForm [name=phone]').value = phone;
+    } catch (e) { trackView(e.message); $('#trackForm [name=phone]').value = phone; }
+  }
+  function openTrack() { trackView(); $('#drawer').classList.add('open'); $('#overlay').classList.add('open'); document.body.style.overflow = 'hidden'; }
+  $('#trackBtn').onclick = openTrack; $('#trackBtn2').onclick = openTrack;
+  document.addEventListener('click', (e) => { if (e.target.closest('[data-track]')) doTrack(); });
+
   $('#cartBtn').onclick = openDrawer; $('#fab').onclick = openDrawer; $('#closeDrawer').onclick = closeDrawer; $('#overlay').onclick = closeDrawer;
   document.addEventListener('keydown', (e) => e.key === 'Escape' && closeDrawer());
   $('#search').addEventListener('input', (e) => { term = e.target.value.toLowerCase().trim(); renderGrid(); });

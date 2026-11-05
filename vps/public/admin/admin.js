@@ -127,6 +127,61 @@
       bindPeriod(load); load();
     },
 
+
+    async aovivo() {
+      view.innerHTML = `<div class="live-top"><span class="live-dot"></span><b>AO VIVO</b><span class="muted" id="liveInfo">atualiza sozinho a cada 8 segundos</span><span class="spacer"></span>
+        <button class="btn btn-ghost btn-sm" id="soundBtn">${soundOn ? '🔔 Som ligado' : '🔕 Ativar som'}</button></div>
+        <div class="live-grid"><div class="panel live-map-wrap"><div id="map" class="live-map"></div><div class="map-legend"><span><i style="background:#fff"></i>Loja</span><span><i style="background:#f59e0b"></i>Aguardando</span><span><i style="background:#F00079"></i>Preparo / a caminho</span><span><i style="background:#22c55e"></i>Entregue</span></div></div>
+        <div id="liveList" class="live-list"></div></div>`;
+      $('#soundBtn').onclick = () => { soundOn = !soundOn; localStorage.setItem('nsd_sound', soundOn ? '1' : '0'); if (soundOn) ding(); $('#soundBtn').textContent = soundOn ? '🔔 Som ligado' : '🔕 Ativar som'; };
+      await loadLeaflet();
+      const map = L.map('map', { zoomControl: true }).setView([-29.76, -51.15], 13);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(map);
+      const layer = L.layerGroup().addTo(map); let fitted = false;
+      const color = (st) => st === 'entregue' ? '#22c55e' : st === 'aguardando' ? '#f59e0b' : st === 'cancelado' ? '#6b7280' : '#F00079';
+      const pin = (c, label) => L.divIcon({ className: '', html: `<div class="pin" style="--c:${c}"><span>${label}</span></div>`, iconSize: [34, 42], iconAnchor: [17, 40] });
+      const mins = (d) => Math.max(0, Math.round((Date.now() - new Date(d)) / 60000));
+      const NEXT = { aguardando: ['preparo', '👨‍🍳 Em preparação'], confirmado: ['preparo', '👨‍🍳 Em preparação'], preparo: ['saiu', '🛵 Pedido a caminho'], saiu: ['entregue', '✅ Entregue'] };
+      const load = async () => {
+        if (!document.getElementById('map')) return;
+        const d = await api('/admin/orders/live');
+        layer.clearLayers(); const pts = [];
+        if (d.store.lat) { L.marker([d.store.lat, d.store.lng], { icon: L.divIcon({ className: '', html: '<div class="pin store">🏠</div>', iconSize: [40, 40], iconAnchor: [20, 20] }) }).bindPopup('<b>Nossa loja</b><br>' + esc(d.store.address)).addTo(layer); pts.push([d.store.lat, d.store.lng]); }
+        d.orders.filter((o) => o.lat && o.status !== 'cancelado').forEach((o) => {
+          L.marker([o.lat, o.lng], { icon: pin(color(o.status), o.order_number) }).bindPopup(`<b>#${String(o.order_number).padStart(6, '0')}</b> — ${esc(o.customer_name)}<br>${esc(o.neighborhood_name || '')}, ${esc(o.address || '')}<br>${STATUS[o.status][0]} · ${brl(o.total)}`).addTo(layer);
+          pts.push([o.lat, o.lng]);
+          if (d.store.lat && ['saiu'].includes(o.status)) L.polyline([[d.store.lat, d.store.lng], [o.lat, o.lng]], { color: '#F00079', weight: 2, dashArray: '6 6' }).addTo(layer);
+        });
+        if (!fitted && pts.length) { pts.length > 1 ? map.fitBounds(pts, { padding: [40, 40], maxZoom: 15 }) : map.setView(pts[0], 15); fitted = true; }
+        const active = d.orders.filter((o) => !['entregue', 'cancelado'].includes(o.status));
+        $('#liveInfo').textContent = `${active.length} em andamento · ${d.orders.filter((o) => o.status === 'entregue').length} entregues hoje${d.store.lat ? '' : ' · cadastre o endereço da loja em Configurações'}`;
+        $('#liveList').innerHTML = d.orders.map((o) => `<div class="live-card st-${o.status}" data-id="${o.id}">
+          <div class="row"><b class="ln">#${String(o.order_number).padStart(6, '0')}</b>${pill(o.status)}</div>
+          <div><b>${esc(o.customer_name)}</b> <span class="muted">${esc(o.customer_phone || '')}</span></div>
+          <div class="muted">${esc(o.neighborhood_name || (o.source === 'manual' ? 'Venda manual' : ''))} ${esc(o.address || '')}${o.lat || o.source === 'manual' ? '' : ' · <a href="#" data-locate>📍 marcar no mapa</a>'}</div>
+          <div class="items">${o.items.map((i) => `${i.quantity}× ${esc(i.name)}`).join(' · ')}</div>
+          ${o.notes ? `<div class="muted">Obs: ${esc(o.notes)}</div>` : ''}
+          <div class="row"><b>${brl(o.total)}</b><span class="muted">${esc(o.payment_method || '')} · há ${mins(o.created_at)} min</span></div>
+          ${o.status === 'saiu' && o.out_for_delivery_at ? `<div class="muted">🛵 Saiu há ${mins(o.out_for_delivery_at)} min · baixa automática em ${Math.max(0, d.auto_deliver_minutes - mins(o.out_for_delivery_at))} min</div>` : ''}
+          <div class="actions">${NEXT[o.status] ? `<button class="btn btn-primary btn-sm" data-go="${NEXT[o.status][0]}">${NEXT[o.status][1]}</button>` : ''}
+            <select class="btn btn-ghost btn-sm" data-set><option value="">Alterar…</option>${Object.entries(STATUS).filter(([k]) => k !== o.status).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join('')}</select>
+            ${o.customer_phone ? `<a class="btn btn-ghost btn-sm" target="_blank" href="https://wa.me/55${o.customer_phone.replace(/^55/, '')}">WhatsApp</a>` : ''}
+            <button class="btn btn-ghost btn-sm" data-del>Excluir</button></div></div>`).join('') || '<p class="muted">Nenhum pedido hoje ainda.</p>';
+      };
+      const setSt = async (id, st) => {
+        if (st === 'cancelado' && !confirm('Cancelar pedido? Se já confirmado, o estoque volta.')) return;
+        await api('/admin/orders/' + id, { method: 'PUT', body: { status: st } }); toast('Status atualizado ✓'); load();
+      };
+      $('#liveList').onclick = async (e) => {
+        const card = e.target.closest('[data-id]'); if (!card) return; const id = card.dataset.id;
+        if (e.target.dataset.go) setSt(id, e.target.dataset.go);
+        if (e.target.hasAttribute('data-del') && confirm('Excluir este pedido de vez? O estoque volta e o lançamento financeiro some.')) { await api('/admin/orders/' + id, { method: 'DELETE' }); toast('Pedido excluído'); load(); }
+        if (e.target.hasAttribute('data-locate')) { e.preventDefault(); toast('Clique no mapa onde fica a entrega'); map.once('click', async (ev) => { await api(`/admin/orders/${id}/locate`, { method: 'POST', body: { lat: ev.latlng.lat, lng: ev.latlng.lng } }); toast('Local salvo ✓'); load(); }); }
+      };
+      $('#liveList').onchange = (e) => { const card = e.target.closest('[data-id]'); if (e.target.hasAttribute('data-set') && e.target.value) setSt(card.dataset.id, e.target.value); };
+      liveRefresh = load; await load();
+    },
+
     async pedidos() {
       view.innerHTML = `<div class="toolbar"><div class="field"><label>Status</label><select id="st"><option value="">Todos</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join('')}</select></div>${periodSelect()}<a class="btn btn-primary" href="#venda">+ Venda manual</a></div><div id="list"></div>`;
       const load = async () => {
@@ -140,11 +195,16 @@
             <td><div class="actions">
               <select data-status="${o.id}" class="btn btn-ghost btn-sm">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${k === o.status ? 'selected' : ''}>${v[0]}</option>`).join('')}</select>
               ${o.status !== 'cancelado' ? `<button class="btn btn-ghost btn-sm" data-pay="${o.id}" data-cur="${o.payment_status}" data-st="${o.status}">${o.payment_status === 'pago' ? 'Marcar pendente' : 'Marcar pago'}</button>` : ''}
-              ${o.customer_phone ? `<a class="btn btn-ghost btn-sm" target="_blank" href="https://wa.me/55${o.customer_phone.replace(/^55/, '')}">WhatsApp</a>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nenhum pedido.</td></tr>'}
+              ${o.customer_phone ? `<a class="btn btn-ghost btn-sm" target="_blank" href="https://wa.me/55${o.customer_phone.replace(/^55/, '')}">WhatsApp</a>` : ''}
+              <button class="btn btn-ghost btn-sm" data-del="${o.id}">Excluir</button></div></td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nenhum pedido.</td></tr>'}
           </tbody></table></div>`;
         $('#list').querySelectorAll('[data-status]').forEach((s) => (s.onchange = async () => {
           if (s.value === 'cancelado' && !confirm('Cancelar pedido? Se já confirmado, o estoque será estornado.')) return load();
           await api('/admin/orders/' + s.dataset.status, { method: 'PUT', body: { status: s.value } }); toast('Status atualizado ✓'); load();
+        }));
+        $('#list').querySelectorAll('[data-del]').forEach((b) => (b.onclick = async () => {
+          if (!confirm('Excluir este pedido de vez? O estoque volta e o lançamento financeiro some.')) return;
+          await api('/admin/orders/' + b.dataset.del, { method: 'DELETE' }); toast('Pedido excluído'); load();
         }));
         $('#list').querySelectorAll('[data-pay]').forEach((b) => (b.onclick = async () => {
           await api('/admin/orders/' + b.dataset.pay, { method: 'PUT', body: { status: b.dataset.st, payment_status: b.dataset.cur === 'pago' ? 'pendente' : 'pago' } }); toast('Pagamento atualizado ✓'); load();
@@ -348,6 +408,9 @@
       view.innerHTML = `<form id="cfg" class="cols">
         <div class="panel form"><h3 class="field full">Loja e WhatsApp</h3>${f('store_name', 'Nome da loja')}${f('tagline', 'Texto do cabeçalho')}
           ${f('whatsapp', 'WhatsApp que recebe pedidos (com DDI e DDD, ex. 5551999999999)', 'tel')}${f('payment_methods', 'Formas de pagamento (separadas por vírgula)')}</div>
+        <div class="panel form"><h3 class="field full">Endereço da loja (ponto inicial do mapa)</h3>${f('store_address', 'Rua e número da loja')}${f('store_city', 'Cidade, UF')}
+          ${f('auto_deliver_minutes', 'Minutos para baixa automática como entregue', 'number', 'min="5"')}
+          <p class="muted field full">${s.store_lat ? '📍 Localização encontrada no mapa ✓' : 'Depois de salvar, a loja aparece no mapa de Pedidos ao vivo.'}</p></div>
         <div class="panel form"><h3 class="field full">Horário de funcionamento</h3>${f('open_time', 'Abre às', 'time')}${f('close_time', 'Fecha às', 'time')}
           <div class="field full"><label>Modo</label><select name="store_open"><option value="auto">Automático pelo horário</option><option value="1" ${s.store_open === '1' ? 'selected' : ''}>Forçar ABERTO</option><option value="0" ${s.store_open === '0' ? 'selected' : ''}>Forçar FECHADO</option></select></div>
           <div class="field full"><label>Produtos esgotados na loja</label><select name="show_sold_out"><option value="1">Mostrar como ESGOTADO</option><option value="0" ${s.show_sold_out === '0' ? 'selected' : ''}>Esconder</option></select></div></div>
@@ -356,16 +419,53 @@
         <div class="field full"><button class="btn btn-primary" type="submit">SALVAR CONFIGURAÇÕES</button></div></form>
         <div class="panel"><h3>Alterar minha senha</h3><form id="pw" class="toolbar"><div class="field"><label>Senha atual</label><input name="current" type="password" required></div><div class="field"><label>Nova senha (8+)</label><input name="next" type="password" minlength="8" required></div><button class="btn btn-ghost">Alterar senha</button></form></div>`;
       bindImgFields(view);
-      $('#cfg').onsubmit = async (e) => { e.preventDefault(); await api('/admin/settings', { method: 'PUT', body: Object.fromEntries(new FormData(e.target)) }); toast('Configurações salvas ✓'); };
+      $('#cfg').onsubmit = async (e) => { e.preventDefault(); await api('/admin/settings', { method: 'PUT', body: Object.fromEntries(new FormData(e.target)) }); toast('Configurações salvas ✓'); pages.configuracoes(); };
       $('#pw').onsubmit = async (e) => { e.preventDefault(); await api('/auth/password', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); e.target.reset(); toast('Senha alterada ✓'); };
     },
   };
 
+  // ---------- Novos pedidos: aviso sonoro em qualquer tela ----------
+  let soundOn = localStorage.getItem('nsd_sound') !== '0', liveRefresh = null, lastId = null, actx;
+  function ding() {
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume();
+      [[880, 0], [1320, .18], [880, .36], [1320, .54]].forEach(([f, t]) => {
+        const o = actx.createOscillator(), g = actx.createGain(); o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(.0001, actx.currentTime + t); g.gain.exponentialRampToValueAtTime(.5, actx.currentTime + t + .02); g.gain.exponentialRampToValueAtTime(.0001, actx.currentTime + t + .16);
+        o.connect(g).connect(actx.destination); o.start(actx.currentTime + t); o.stop(actx.currentTime + t + .18);
+      });
+    } catch {}
+  }
+  document.addEventListener('click', () => { if (soundOn && !actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch {} } }, { once: true });
+  function newOrderAlert() {
+    if (soundOn) ding();
+    const b = $('#newOrder'); b.classList.add('show'); clearTimeout(b._t); b._t = setTimeout(() => b.classList.remove('show'), 12000);
+    document.title = '🔔 NOVO PEDIDO — Painel'; setTimeout(() => (document.title = 'Painel — No Silva Drinks'), 15000);
+  }
+  async function watch() {
+    try {
+      const r = await fetch(API + '/admin/orders/last'); if (!r.ok) return;
+      const { id } = await r.json();
+      if (lastId !== null && id > lastId) newOrderAlert();
+      lastId = id;
+      if (liveRefresh) await liveRefresh();
+    } catch {}
+  }
+  let watching = false;
+  function startWatch() { if (watching) return; watching = true; watch(); setInterval(watch, 8000); }
+  function loadLeaflet() {
+    if (window.L) return Promise.resolve();
+    return new Promise((ok, fail) => {
+      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.appendChild(css);
+      const js = document.createElement('script'); js.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; js.onload = ok; js.onerror = fail; document.head.appendChild(js);
+    });
+  }
+
   // ---------- Navegação ----------
-  const TITLES = { dashboard: 'Dashboard', pedidos: 'Pedidos / Vendas', venda: 'Venda manual', baixa: 'Baixa rápida', estoque: 'Estoque', produtos: 'Produtos', categorias: 'Categorias', bairros: 'Bairros e taxas', financeiro: 'Financeiro', clientes: 'Clientes', configuracoes: 'Configurações' };
+  const TITLES = { dashboard: 'Dashboard', aovivo: 'Pedidos ao vivo', pedidos: 'Pedidos / Vendas', venda: 'Venda manual', baixa: 'Baixa rápida', estoque: 'Estoque', produtos: 'Produtos', categorias: 'Categorias', bairros: 'Bairros e taxas', financeiro: 'Financeiro', clientes: 'Clientes', configuracoes: 'Configurações' };
   async function route() {
     const p = (location.hash.slice(1) || 'dashboard').split('?')[0], page = pages[p] ? p : 'dashboard';
-    charts.forEach((c) => c.destroy()); charts = []; view.onclick = null;
+    charts.forEach((c) => c.destroy()); charts = []; view.onclick = null; liveRefresh = null;
     $('#pageTitle').textContent = TITLES[page];
     document.querySelectorAll('#nav a').forEach((a) => a.classList.toggle('active', a.getAttribute('href') === '#' + page));
     $('#side').classList.remove('open'); $('#sideOverlay').classList.remove('open');
@@ -384,6 +484,6 @@
     start(j.name);
   };
   $('#logout').onclick = async () => { await fetch(API + '/auth/logout', { method: 'POST' }); showLogin(); };
-  function start(name) { $('#login').hidden = true; $('#app').hidden = false; $('#userName').textContent = name; route(); }
+  function start(name) { $('#login').hidden = true; $('#app').hidden = false; $('#userName').textContent = name; route(); startWatch(); }
   fetch(API + '/auth/me').then((r) => (r.ok ? r.json().then((u) => start(u.name)) : showLogin())).catch(showLogin);
 })();

@@ -67,6 +67,15 @@ Se `nginx -t` reclamar de `http2 on;`, apague essa linha e troque `listen 443 ss
 
 Pronto: `https://seudominio.com.br` abre a loja e `https://seudominio.com.br/admin` o painel.
 
+## Pedidos ao vivo, mapa e acompanhamento
+- **Painel → Pedidos ao vivo**: os pedidos novos aparecem sozinhos (a cada 8 s), com som e aviso no topo em qualquer tela do painel.
+  Na primeira vez, clique em qualquer lugar da página para o navegador liberar o som.
+- Mapa gratuito (OpenStreetMap), sem chave: a casa 🏠 é a loja e cada pino é a entrega de um pedido do dia.
+  Cadastre o endereço da loja em **Configurações → Endereço da loja**. Se um endereço não for achado, use "📍 marcar no mapa" no pedido.
+- Botões de um clique: **Em preparação → Pedido a caminho → Entregue**. Depois de "a caminho", vira **Entregue sozinho em 40 min**
+  (dá para mudar em Configurações). Em "Alterar…" você volta o status, cancela, e **Excluir** apaga o pedido (o estoque volta).
+- Na loja, o cliente clica em **📦 Meu pedido**, digita o telefone e vê o status do último pedido.
+
 ## Passo 4 — Primeiro acesso
 
 1. Entre em `.../admin` com o e-mail e senha do Passo 2.
