@@ -21,7 +21,7 @@ app.use(express.json({ limit: '8mb' }));
 app.use(cookieParser());
 
 // ---------- Uploads ----------
-const UPLOAD_DIR = path.join(__dirname, '..', 'public', 'uploads');
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '..', 'public', 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 const upload = multer({
   storage: multer.diskStorage({
@@ -467,6 +467,7 @@ app.use('/api/admin', A);
 
 // ---------- Arquivos estáticos ----------
 app.get('/admin', (req, res, next) => (req.originalUrl.split('?')[0].endsWith('/') ? next() : res.redirect('admin/')));
+app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '7d', index: false, dotfiles: 'deny' }));
 app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', index: 'index.html', redirect: false }));
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 

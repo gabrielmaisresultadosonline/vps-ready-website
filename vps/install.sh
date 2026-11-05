@@ -1,75 +1,86 @@
 #!/usr/bin/env bash
-# Instalador do No Silva Drinks — NÃO altera outros sites, NGINX nem SSL existentes.
-# Uso (dentro da pasta do projeto):  sudo bash install.sh
+# =====================================================================
+#  No Silva Drinks — instalador ADITIVO (não mexe no MRO)
+#  Uso:  sudo bash /var/www/nosilva-drinks/app/install.sh
+#  - Não instala outro PostgreSQL, Docker nem Redis
+#  - Não altera Nginx/SSL/portas/PM2 de outros sites
+#  - Banco próprio: nosilva_drinks / usuário nosilva_app
+#  - Porta interna: 3002 (só 127.0.0.1)
+# =====================================================================
 set -euo pipefail
-cd "$(dirname "$0")"
-APP_DIR="$(pwd)"
-PORT="${PORT:-3010}"
-DB_NAME="nosilva"; DB_USER="nosilva"
+APP_DIR="$(cd "$(dirname "$0")" && pwd)"
+BASE="/var/www/nosilva-drinks"
+PORT="${PORT:-3002}"
+DB_NAME="nosilva_drinks"; DB_USER="nosilva_app"
+ENV_FILE="$BASE/.env"
 
-echo "==> Pasta do projeto: $APP_DIR"
+echo "==> Pasta do app: $APP_DIR"
+case "$APP_DIR" in /var/www/ia-mro*|/var/www/video-server*|/var/www/uploads*) echo "!! Pasta do MRO. Abortando."; exit 1;; esac
 
-# 1) Node.js 20 (só instala se não existir)
-if ! command -v node >/dev/null || [ "$(node -v | cut -d. -f1 | tr -d v)" -lt 18 ]; then
-  echo "==> Instalando Node.js 20"
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-  apt-get install -y nodejs
+# 1) Verificações (somente leitura)
+echo "==> Recursos:"; free -h | head -2; df -h / | tail -1
+command -v node >/dev/null || { echo "!! Node.js não encontrado (o MRO já usa Node, verifique)."; exit 1; }
+[ "$(node -v | cut -d. -f1 | tr -d v)" -ge 18 ] || { echo "!! Node 18+ necessário."; exit 1; }
+command -v psql >/dev/null || { echo "!! PostgreSQL não encontrado. Não vou instalar outro."; exit 1; }
+command -v pm2  >/dev/null || { echo "!! PM2 não encontrado."; exit 1; }
+if [ ! -f "$ENV_FILE" ] && ss -ltn | grep -q ":$PORT "; then
+  echo "!! Porta $PORT ocupada. Use outra: sudo PORT=3003 bash install.sh"; exit 1
 fi
 
-# 2) PostgreSQL (só instala se não existir)
-if ! command -v psql >/dev/null; then
-  echo "==> Instalando PostgreSQL"
-  apt-get update && apt-get install -y postgresql postgresql-contrib
-  systemctl enable --now postgresql
-fi
+# 2) Pastas próprias
+mkdir -p "$BASE/uploads" "$BASE/logs" "$BASE/backups"
+chmod 755 "$BASE/uploads"
 
-# 3) Verifica porta livre
-if ss -ltn | grep -q ":$PORT "; then
-  echo "!! A porta $PORT já está em uso. Rode de novo com outra porta: sudo PORT=3020 bash install.sh"; exit 1
-fi
-
-# 4) .env + banco exclusivo deste site
-if [ ! -f .env ]; then
-  DB_PASS="$(openssl rand -hex 16)"
-  JWT="$(openssl rand -hex 32)"
-  ADMIN_PASS="guilherme2129"
-  cat > .env <<EOF
+# 3) .env + banco exclusivo (só na primeira vez)
+if [ ! -f "$ENV_FILE" ]; then
+  DB_PASS="$(openssl rand -hex 24)"
+  cat > "$ENV_FILE" <<EOF
+NODE_ENV=production
 PORT=$PORT
+DOMAIN=https://nosilvadrinks.com.br
 DATABASE_URL=postgresql://$DB_USER:$DB_PASS@127.0.0.1:5432/$DB_NAME
-JWT_SECRET=$JWT
+JWT_SECRET=$(openssl rand -hex 48)
 ADMIN_EMAIL=mro@gmail.com
-ADMIN_PASSWORD=$ADMIN_PASS
+ADMIN_PASSWORD=guilherme2129
+UPLOAD_DIR=$BASE/uploads
 TZ_STORE=America/Sao_Paulo
 EOF
-  chmod 600 .env
-  echo "==> Criando banco '$DB_NAME' (separado dos outros bancos)"
+  chmod 600 "$ENV_FILE"
+  echo "==> Criando usuário '$DB_USER' e banco '$DB_NAME' (o banco mro NÃO é tocado)"
   sudo -u postgres psql -v ON_ERROR_STOP=1 <<EOF
 DO \$\$ BEGIN
-  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='$DB_USER') THEN CREATE ROLE $DB_USER LOGIN PASSWORD '$DB_PASS';
-  ELSE ALTER ROLE $DB_USER WITH PASSWORD '$DB_PASS'; END IF; END \$\$;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='$DB_USER') THEN
+    CREATE ROLE $DB_USER LOGIN PASSWORD '$DB_PASS' NOSUPERUSER NOCREATEDB NOCREATEROLE;
+  ELSE ALTER ROLE $DB_USER WITH PASSWORD '$DB_PASS'; END IF;
+END \$\$;
 EOF
-  sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" | grep -q 1 || sudo -u postgres createdb -O "$DB_USER" "$DB_NAME"
+  sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" | grep -q 1 \
+    || sudo -u postgres createdb -O "$DB_USER" "$DB_NAME"
+  sudo -u postgres psql -v ON_ERROR_STOP=1 -c "REVOKE CONNECT ON DATABASE $DB_NAME FROM PUBLIC;" -c "GRANT CONNECT ON DATABASE $DB_NAME TO $DB_USER;"
 else
-  echo "==> .env já existe, mantendo configurações"
-  ADMIN_PASS="(a que está no arquivo .env)"
+  echo "==> $ENV_FILE já existe, mantendo"
 fi
+ln -sf "$ENV_FILE" "$APP_DIR/.env"
 
-# 5) Dependências e tabelas
-npm install --omit=dev
+# 4) Dependências SÓ dentro do projeto + tabelas no banco novo
+cd "$APP_DIR"
+npm install --omit=dev --no-audit --no-fund
 npm run init-db
 
-# 6) PM2 (mantém o site rodando e reinicia com a VPS)
-command -v pm2 >/dev/null || npm install -g pm2
-pm2 start ecosystem.config.js --update-env || pm2 restart nosilva-drinks --update-env
+# 5) PM2 — somente o processo nosilva-drinks
+if pm2 describe nosilva-drinks >/dev/null 2>&1; then
+  pm2 restart nosilva-drinks --update-env
+else
+  pm2 start ecosystem.config.js --only nosilva-drinks
+fi
 pm2 save
-pm2 startup systemd -u "$(whoami)" --hp "$HOME" >/dev/null 2>&1 || true
+
+sleep 2
+curl -fsS "http://127.0.0.1:$PORT/api/health" && echo " <- app OK" || echo "!! App não respondeu. Veja: pm2 logs nosilva-drinks"
 
 echo
 echo "================ PRONTO ================"
-echo "Site rodando internamente em: http://127.0.0.1:$PORT"
-echo "Login do painel: mro@gmail.com"
-echo "Senha inicial:   $ADMIN_PASS   (troque em Configurações)"
-echo
-echo "Falta só ligar um endereço ao site. Veja o LEIA-ME.md, passo 3"
-echo "(nginx-dominio.conf + Cloudflare)."
+echo "App interno: http://127.0.0.1:$PORT  (não exposto à internet)"
+echo "Painel: mro@gmail.com / guilherme2129 (troque em Configurações)"
+echo "Próximo passo: sudo bash $APP_DIR/setup-dominio.sh"
 echo "========================================"
