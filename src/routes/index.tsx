@@ -22,22 +22,10 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   return (
-    <main className="flex h-screen flex-col bg-background text-foreground">
-      <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-2 text-sm">
-        <span className="font-display text-lg tracking-wide">
-          NO SILVA <span className="text-primary">DRINKS</span>
-        </span>
-        <span className="text-muted-foreground">Pré-visualização da loja (produtos de exemplo)</span>
-        <div className="ml-auto flex gap-2">
-          <a href="/loja/index.html" target="_blank" rel="noopener" className="rounded-lg border border-border px-3 py-1.5 font-semibold">
-            Abrir em tela cheia
-          </a>
-          <a href="/nosilva-drinks.zip" download className="rounded-lg bg-primary px-3 py-1.5 font-semibold text-primary-foreground">
-            Baixar para VPS (.zip)
-          </a>
-        </div>
-      </div>
-      <iframe src="/loja/index.html" title="Loja No Silva Drinks" className="w-full flex-1 border-0" />
-    </main>
+    <iframe
+      src="/loja/index.html"
+      title="No Silva Drinks"
+      className="fixed inset-0 h-screen w-screen border-0"
+    />
   );
 }
