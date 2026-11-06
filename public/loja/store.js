@@ -246,6 +246,7 @@
       const s = S.settings;
       if (s.logo) { $('#logo').src = s.logo; $('#logo').hidden = false; }
       if (s.favicon || s.logo) $('#favicon').href = s.favicon || s.logo;
+      const hero = document.querySelector('.hero'); if (hero) hero.style.display = s.hero_enabled === '0' ? 'none' : '';
       if (s.hero_image) $('#heroImg').src = s.hero_image;
       if (s.hero_title) $('#heroTitle').textContent = s.hero_title;
       if (s.hero_subtitle) $('#heroSub').textContent = s.hero_subtitle;

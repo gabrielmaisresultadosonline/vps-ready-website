@@ -404,6 +404,48 @@
       render();
     },
 
+    async tutorial() {
+      const sec = (icon, title, href, body) => `<details class="tut" ${href === 'dashboard' ? 'open' : ''}><summary><span>${icon}</span>${title}</summary><div class="tut-body">${body}${href ? `<a class="btn btn-ghost btn-sm" href="#${href}">Abrir ${title} →</a>` : ''}</div></details>`;
+      view.innerHTML = `<div class="panel tut-intro"><h3>📘 Como usar o painel</h3>
+        <p>Aqui está tudo que você pode fazer no painel da No Silva Drinks. Toque em cada item para abrir a explicação. No celular, abra o menu pelo botão ☰ no topo.</p>
+        <p class="muted"><b>Primeiros passos sugeridos:</b> 1) Configurações (WhatsApp, endereço, horário) → 2) Zerar os dados de exemplo → 3) Categorias → 4) Produtos → 5) Estoque (entrada de mercadoria) → 6) Bairros e taxas → 7) Deixe “Pedidos ao vivo” aberto.</p></div>
+      <div class="tut-list">
+      ${sec('📊', 'Dashboard', 'dashboard', `<p>Resumo do negócio no período escolhido (hoje, 7 dias, 30 dias, mês, etc.).</p><ul>
+        <li><b>Faturamento bruto</b>: total vendido (produtos + entregas).</li><li><b>Custo da mercadoria (CMV)</b> e <b>Lucro bruto</b>: quanto custou o que foi vendido e quanto sobrou.</li>
+        <li><b>Despesas</b> e <b>Resultado líquido</b>: lucro menos as saídas do financeiro.</li><li><b>Recebido / Pendente</b>: pedidos pagos e a receber.</li>
+        <li>Gráficos de faturamento diário, últimos 12 meses, produtos e categorias mais vendidos, e alerta de <b>estoque baixo/esgotado</b>.</li></ul>`)}
+      ${sec('🛵', 'Pedidos ao vivo', 'aovivo', `<p>A tela de trabalho do dia. Deixe aberta no computador ou celular.</p><ul>
+        <li>Pedidos novos aparecem <b>sozinhos</b> (a cada ~8 segundos), sem recarregar.</li>
+        <li>Ao chegar pedido, em <b>qualquer tela do painel</b> abre uma janela no meio da tela com os dados do pedido e toca um <b>som</b> que repete até você clicar em “Ver pedido” ou “Fechar”.</li>
+        <li>O botão 🔔/🔕 liga ou desliga o som. Os navegadores só tocam som depois de você clicar uma vez na página.</li>
+        <li><b>Mapa</b>: 🏠 é a sua loja; cada número é um pedido do dia no local da entrega. Se um endereço não for achado, clique em “📍 marcar no mapa” e depois no local certo.</li>
+        <li>Botão principal muda o pedido passo a passo: <b>Recebido → Em preparação → A caminho</b>. Quando fica “A caminho”, depois do tempo configurado (padrão 40 min) ele vira <b>Entregue</b> automaticamente.</li>
+        <li>“Alterar…” volta ou muda o status, inclusive <b>Cancelar</b>. “Excluir” apaga o pedido e devolve o estoque.</li>
+        <li>Pagamento em dinheiro mostra o <b>troco</b>: “Troco para R$ 100 → levar R$ 87,50”.</li></ul>`)}
+      ${sec('🧾', 'Pedidos / Vendas', 'pedidos', `<ul><li>Lista completa com filtro por status e período.</li><li>Mostra itens, subtotal, entrega, total, custo, lucro, forma de pagamento e troco.</li>
+        <li>Mude o status, marque como <b>pago/pendente</b> (gera a entrada no financeiro), abra o WhatsApp do cliente ou exclua.</li>
+        <li>O estoque só é descontado quando o pedido é confirmado (em preparação, a caminho ou entregue). Cancelar devolve o estoque.</li></ul>`)}
+      ${sec('➕', 'Venda manual', 'venda', `<p>Para vendas no balcão ou pedidos feitos por telefone. Escolha os produtos e quantidades, cliente (opcional), forma de pagamento e taxa de entrega. Já desconta o estoque e, se marcado como pago, lança no financeiro.</p>`)}
+      ${sec('⚡', 'Baixa rápida', 'baixa', `<p>Botões grandes −1, −2, −5, −10 para tirar do estoque na hora (consumo, quebra, brinde). Ideal para usar no celular.</p>`)}
+      ${sec('📦', 'Estoque', 'estoque', `<ul><li>Veja quantidade, estoque mínimo, custo, valor em estoque e itens com estoque baixo ou esgotado.</li>
+        <li><b>Entrada de mercadoria</b>: quantidade, custo unitário, fornecedor e forma de pagamento. Atualiza o custo do produto e lança a saída no financeiro.</li>
+        <li>Histórico de movimentações com opção de <b>estornar</b> um lançamento errado.</li></ul>`)}
+      ${sec('🍾', 'Produtos', 'produtos', `<ul><li>Cadastre nome, descrição, foto (envio ou link), categoria, unidade, preço de venda, <b>preço promocional</b>, custo, estoque inicial e <b>estoque mínimo</b>.</li>
+        <li>Status: <b>ativo</b> (aparece na loja), <b>indisponível</b> (aparece como esgotado) ou <b>rascunho</b> (escondido).</li>
+        <li>Marque <b>destaque</b> para aparecer primeiro. Quando o estoque fica no mínimo ou abaixo, aparece o aviso “BAIXO”.</li></ul>`)}
+      ${sec('🗂️', 'Categorias', 'categorias', `<p>Crie, renomeie, ordene e desative as abas da loja (ex.: Alcoólicos, Não alcoólicos, Itens variados).</p>`)}
+      ${sec('📍', 'Bairros e taxas', 'bairros', `<p>Cadastre cada bairro atendido com a <b>taxa de entrega</b> e o tempo estimado. O cliente escolhe o bairro no pedido e a taxa entra no total. Desative bairros que não atende mais.</p>`)}
+      ${sec('💰', 'Financeiro', 'financeiro', `<ul><li>Todas as entradas e saídas: vendas pagas e compras de estoque entram sozinhas (“auto”).</li>
+        <li>Lance despesas como aluguel, luz, motoboy, embalagens, com categoria e forma de pagamento.</li><li>Filtre por período e veja saldo.</li></ul>`)}
+      ${sec('👥', 'Clientes', 'clientes', `<p>Clientes são salvos automaticamente pelo telefone a cada pedido: nome, endereço, quantidade de pedidos, total gasto e último pedido. Clique para falar no WhatsApp.</p>`)}
+      ${sec('⚙️', 'Configurações', 'configuracoes', `<ul><li><b>WhatsApp</b> que recebe os pedidos (com 55 + DDD).</li><li><b>Formas de pagamento</b> (ex.: Pix, Dinheiro, Cartão). Com “Dinheiro”, o cliente informa se precisa de troco e o sistema calcula.</li>
+        <li><b>Endereço da loja</b>: ponto inicial do mapa. <b>Minutos para baixa automática</b> (padrão 40).</li>
+        <li><b>Horário</b> de abertura/fechamento ou forçar aberto/fechado. Mostrar ou esconder esgotados.</li><li>Banner, logo e favicon. Trocar sua senha.</li>
+        <li><b>Zerar dados</b>: apaga estoque, pedidos, financeiro e/ou produtos para começar do zero. Pede a sua senha e uma confirmação.</li></ul>`)}
+      ${sec('🛒', 'Como o cliente compra', '', `<ol><li>Na loja, escolhe os produtos e toca em “Finalizar pedido”.</li><li>Preenche nome, WhatsApp, bairro, endereço e forma de pagamento (e troco, se for dinheiro).</li>
+        <li>O pedido é salvo no painel e abre o WhatsApp da loja com a mensagem pronta.</li><li>Em “Meu pedido”, o cliente digita o telefone e acompanha: Recebido → Em preparação → A caminho → Entregue.</li></ol>`)}
+      </div>`;
+    },
     async configuracoes() {
       const s = await api('/admin/settings');
       const f = (k, l, t = 'text', extra = '') => `<div class="field"><label>${l}</label><input name="${k}" type="${t}" value="${esc(s[k] || '')}" ${extra}></div>`;
@@ -416,12 +458,30 @@
         <div class="panel form"><h3 class="field full">Horário de funcionamento</h3>${f('open_time', 'Abre às', 'time')}${f('close_time', 'Fecha às', 'time')}
           <div class="field full"><label>Modo</label><select name="store_open"><option value="auto">Automático pelo horário</option><option value="1" ${s.store_open === '1' ? 'selected' : ''}>Forçar ABERTO</option><option value="0" ${s.store_open === '0' ? 'selected' : ''}>Forçar FECHADO</option></select></div>
           <div class="field full"><label>Produtos esgotados na loja</label><select name="show_sold_out"><option value="1">Mostrar como ESGOTADO</option><option value="0" ${s.show_sold_out === '0' ? 'selected' : ''}>Esconder</option></select></div></div>
-        <div class="panel form"><h3 class="field full">Banner principal</h3>${f('hero_title', 'Título')}${f('hero_subtitle', 'Subtítulo')}${imgField('hero_image', s.hero_image, 'Imagem do banner')}</div>
+        <div class="panel form"><h3 class="field full">Banner principal (promoção / destaque)</h3><div class="field full"><label>Mostrar banner na loja</label><select name="hero_enabled"><option value="1">✅ Ativado</option><option value="0" ${s.hero_enabled === '0' ? 'selected' : ''}>⛔ Desativado</option></select></div>${f('hero_title', 'Título')}${f('hero_subtitle', 'Subtítulo')}${imgField('hero_image', s.hero_image, 'Imagem do banner')}</div>
         <div class="panel form"><h3 class="field full">Identidade visual</h3>${imgField('logo', s.logo, 'Logo principal')}${imgField('favicon', s.favicon, 'Favicon (ícone da aba)')}</div>
         <div class="field full"><button class="btn btn-primary" type="submit">SALVAR CONFIGURAÇÕES</button></div></form>
-        <div class="panel"><h3>Alterar minha senha</h3><form id="pw" class="toolbar"><div class="field"><label>Senha atual</label><input name="current" type="password" required></div><div class="field"><label>Nova senha (8+)</label><input name="next" type="password" minlength="8" required></div><button class="btn btn-ghost">Alterar senha</button></form></div>`;
+        <div class="panel"><h3>Alterar minha senha</h3><form id="pw" class="toolbar"><div class="field"><label>Senha atual</label><input name="current" type="password" required></div><div class="field"><label>Nova senha (8+)</label><input name="next" type="password" minlength="8" required></div><button class="btn btn-ghost">Alterar senha</button></form></div>
+        <div class="panel danger"><h3>⚠️ Zerar dados (começar do zero)</h3>
+          <p class="muted">Use para apagar os dados de exemplo e cadastrar tudo que é seu. <b>Não dá para desfazer.</b> Configurações, bairros, categorias e seu login continuam.</p>
+          <form id="reset" class="form">
+            <label class="chk"><input type="checkbox" name="what" value="estoque"> <span><b>Zerar estoque</b> — todas as quantidades voltam a 0 e o histórico de entradas/saídas é apagado</span></label>
+            <label class="chk"><input type="checkbox" name="what" value="pedidos"> <span><b>Zerar pedidos</b> — apaga todos os pedidos, vendas e clientes; numeração volta para #000001</span></label>
+            <label class="chk"><input type="checkbox" name="what" value="financeiro"> <span><b>Zerar financeiro</b> — apaga todos os lançamentos de entrada e saída</span></label>
+            <label class="chk"><input type="checkbox" name="what" value="produtos"> <span><b>Apagar todos os produtos</b> — remove o catálogo inteiro (também zera estoque e pedidos)</span></label>
+            <div class="field"><label>Digite sua senha para confirmar</label><input name="password" type="password" required autocomplete="current-password"></div>
+            <label class="chk"><input type="checkbox" name="ok" required> <span>Entendo que os dados escolhidos serão apagados para sempre</span></label>
+            <button class="btn btn-danger">ZERAR DADOS SELECIONADOS</button>
+          </form></div>`;
       bindImgFields(view);
       $('#cfg').onsubmit = async (e) => { e.preventDefault(); await api('/admin/settings', { method: 'PUT', body: Object.fromEntries(new FormData(e.target)) }); toast('Configurações salvas ✓'); pages.configuracoes(); };
+      $('#reset').onsubmit = async (e) => {
+        e.preventDefault(); const f = e.target, what = [...f.querySelectorAll('[name=what]:checked')].map((x) => x.value);
+        if (!what.length) return toast('Marque o que deseja zerar');
+        if (!confirm('Última confirmação: apagar ' + what.join(', ') + '? Não dá para desfazer.')) return;
+        try { await api('/admin/reset', { method: 'POST', body: { password: f.password.value, what } }); f.reset(); toast('Dados zerados ✓'); lastId = null; }
+        catch (err) { toast(err.message || 'Erro'); }
+      };
       $('#pw').onsubmit = async (e) => { e.preventDefault(); await api('/auth/password', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); e.target.reset(); toast('Senha alterada ✓'); };
     },
   };
@@ -483,7 +543,7 @@
   }
 
   // ---------- Navegação ----------
-  const TITLES = { dashboard: 'Dashboard', aovivo: 'Pedidos ao vivo', pedidos: 'Pedidos / Vendas', venda: 'Venda manual', baixa: 'Baixa rápida', estoque: 'Estoque', produtos: 'Produtos', categorias: 'Categorias', bairros: 'Bairros e taxas', financeiro: 'Financeiro', clientes: 'Clientes', configuracoes: 'Configurações' };
+  const TITLES = { dashboard: 'Dashboard', aovivo: 'Pedidos ao vivo', pedidos: 'Pedidos / Vendas', venda: 'Venda manual', baixa: 'Baixa rápida', estoque: 'Estoque', produtos: 'Produtos', categorias: 'Categorias', bairros: 'Bairros e taxas', financeiro: 'Financeiro', clientes: 'Clientes', configuracoes: 'Configurações', tutorial: 'Tutorial' };
   async function route() {
     const p = (location.hash.slice(1) || 'dashboard').split('?')[0], page = pages[p] ? p : 'dashboard';
     charts.forEach((c) => c.destroy()); charts = []; view.onclick = null; liveRefresh = null;

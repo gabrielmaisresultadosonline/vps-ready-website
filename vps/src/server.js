@@ -110,7 +110,7 @@ app.get('/api/public/store', wrap(async (req, res) => {
        FROM products WHERE status<>'rascunho' ${show ? '' : "AND status='ativo' AND stock_quantity>0"} ORDER BY sort_order,name`),
     q('SELECT id,name,delivery_fee,estimated_minutes FROM neighborhoods WHERE active ORDER BY name'),
   ]);
-  const pub = ['store_name', 'tagline', 'whatsapp', 'hero_title', 'hero_subtitle', 'hero_image', 'logo', 'favicon', 'open_time', 'close_time', 'min_order', 'free_delivery_above', 'payment_methods', 'store_city', 'store_lat', 'store_lng'];
+  const pub = ['store_name', 'tagline', 'whatsapp', 'hero_title', 'hero_subtitle', 'hero_image', 'hero_enabled', 'logo', 'favicon', 'open_time', 'close_time', 'min_order', 'free_delivery_above', 'payment_methods', 'store_city', 'store_lat', 'store_lng'];
   res.json({
     settings: Object.fromEntries(pub.map((k) => [k, s[k]])), open: isOpen(s), categories: cats.rows,
     products: prods.rows.map((p) => ({ ...p, available: p.status === 'ativo' && p.stock_quantity > 0 })),
