@@ -13,7 +13,7 @@ const PORT = Number(process.env.PORT || 3010);
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET || JWT_SECRET.length < 20) { console.error('Defina JWT_SECRET (20+ caracteres) no .env'); process.exit(1); }
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, options: '-c timezone=America/Sao_Paulo' });
 const q = (text, params) => pool.query(text, params);
 const app = express();
 app.set('trust proxy', 1);
@@ -343,7 +343,7 @@ A.post('/stock/entry', wrap(async (req, res) => {
     const mv = await moveStock(c, { product_id: b.product_id, type: 'entrada', quantity: qty, unit_cost: unit, supplier: b.supplier, notes: b.notes, user: req.user.name });
     await c.query('UPDATE products SET current_cost=$1 WHERE id=$2', [unit, b.product_id]);
     if (totalCost > 0) await c.query(`INSERT INTO finance_entries(type,category,description,amount,payment_method,entry_date,stock_movement_id) VALUES('saida','Reposição de estoque',$1,$2,$3,$4,$5)`,
-      [`Compra: ${qty} un${b.supplier ? ' — ' + b.supplier : ''}`, totalCost, b.payment_method || null, b.date || new Date().toISOString().slice(0, 10), mv.id]);
+      [`Compra: ${qty} un${b.supplier ? ' — ' + b.supplier : ''}`, totalCost, b.payment_method || null, b.date || spToday(), mv.id]);
     return mv;
   });
   res.json(m);
@@ -368,12 +368,13 @@ A.post('/stock/revert/:id', wrap(async (req, res) => {
 A.get('/stock/movements', wrap(async (req, res) => res.json((await q(`SELECT m.*, p.name AS product_name FROM stock_movements m JOIN products p ON p.id=m.product_id
   ${req.query.product_id ? 'WHERE m.product_id=$1' : ''} ORDER BY m.id DESC LIMIT 300`, req.query.product_id ? [req.query.product_id] : [])).rows)));
 
+const spToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 // Pedidos / vendas
 A.get('/orders', wrap(async (req, res) => {
   const { status, from, to } = req.query, w = [], p = [];
   if (status) { p.push(status); w.push(`o.status=$${p.length}`); }
-  if (from) { p.push(from); w.push(`o.created_at::date>=$${p.length}`); }
-  if (to) { p.push(to); w.push(`o.created_at::date<=$${p.length}`); }
+  if (from) { p.push(from); w.push(`(o.created_at AT TIME ZONE 'America/Sao_Paulo')::date>=$${p.length}::date`); }
+  if (to) { p.push(to); w.push(`(o.created_at AT TIME ZONE 'America/Sao_Paulo')::date<=$${p.length}::date`); }
   const r = await q(`SELECT o.*, COALESCE(json_agg(json_build_object('name',i.product_name_snapshot,'quantity',i.quantity,'unit_price',i.unit_price,'unit_cost',i.unit_cost_snapshot)) FILTER (WHERE i.id IS NOT NULL),'[]') AS items,
     COALESCE(SUM(i.quantity*i.unit_cost_snapshot),0) AS cost
     FROM orders o LEFT JOIN order_items i ON i.order_id=o.id ${w.length ? 'WHERE ' + w.join(' AND ') : ''} GROUP BY o.id ORDER BY o.id DESC LIMIT 500`, p);
@@ -483,7 +484,7 @@ A.get('/finance', wrap(async (req, res) => {
 }));
 A.post('/finance', wrap(async (req, res) => {
   const b = req.body; if (!['entrada', 'saida'].includes(b.type) || num(b.amount) <= 0) throw bad('Dados inválidos');
-  res.json((await q('INSERT INTO finance_entries(type,category,description,amount,payment_method,notes,entry_date) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *', [b.type, b.category || 'Outros', b.description, num(b.amount), b.payment_method, b.notes, b.entry_date || new Date().toISOString().slice(0, 10)])).rows[0]);
+  res.json((await q('INSERT INTO finance_entries(type,category,description,amount,payment_method,notes,entry_date) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *', [b.type, b.category || 'Outros', b.description, num(b.amount), b.payment_method, b.notes, b.entry_date || spToday()])).rows[0]);
 }));
 A.delete('/finance/:id', wrap(async (req, res) => { await q('DELETE FROM finance_entries WHERE id=$1 AND order_id IS NULL AND stock_movement_id IS NULL', [req.params.id]); res.json({ ok: true }); }));
 
@@ -495,7 +496,7 @@ A.get('/customers/:id/orders', wrap(async (req, res) => res.json((await q('SELEC
 
 // Dashboard / relatórios (CMV usa custo histórico do item vendido)
 A.get('/dashboard', wrap(async (req, res) => {
-  const from = req.query.from || new Date().toISOString().slice(0, 10), to = req.query.to || from;
+  const from = req.query.from || spToday(), to = req.query.to || from;
   const conf = `o.status<>'cancelado' AND (o.created_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $1::date AND $2::date`;
   const [k, fin, pend, low, cust, daily, top, cats, monthly] = await Promise.all([
     q(`SELECT COUNT(DISTINCT o.id) sales, COALESCE(SUM(o.subtotal),0) products_rev, COALESCE(SUM(o.delivery_fee),0) delivery_rev, COALESCE(SUM(o.total),0) gross,
