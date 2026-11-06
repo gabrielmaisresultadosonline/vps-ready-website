@@ -80,7 +80,7 @@
       <div class="field full"><label>Telefone / WhatsApp *</label><input name="phone" required inputmode="tel" autocomplete="tel" placeholder="(51) 99999-9999" value="${v('phone')}"></div>
       <div class="field full"><label>Bairro *</label><select name="neighborhood_id" required><option value="">Selecione…</option>
         ${nbs.map((n) => `<option value="${n.id}" ${saved.neighborhood_id == n.id ? 'selected' : ''}>${esc(n.name)} — ${+n.delivery_fee ? brl(n.delivery_fee) : 'Grátis'}${n.estimated_minutes ? ` · ~${n.estimated_minutes} min` : ''}</option>`).join('')}</select></div>
-      <div class="field"><label>Rua *</label><input name="street" required autocomplete="address-line1" value="${v('street')}"></div>
+      <div class="field ac-wrap"><label>Rua *</label><input name="street" required autocomplete="off" placeholder="Comece a digitar a rua…" value="${v('street')}"><div id="acList" class="ac-list" hidden></div></div>
       <div class="field"><label>Número *</label><input name="number" required value="${v('number')}"></div>
       <div class="field"><label>Complemento</label><input name="complement" value="${v('complement')}"></div>
       <div class="field"><label>Referência</label><input name="reference" value="${v('reference')}"></div>
@@ -111,6 +111,7 @@
     };
     $('#drawerFoot')._h = null; $('#checkout').addEventListener('change', upd); $('#checkout').addEventListener('input', upd); upd();
     pmap = null; if (pin) showPin(pin.lat, pin.lng);
+    setupStreetAC();
   }
 
   // ---------- Mapa de confirmação do endereço ----------
@@ -134,6 +135,39 @@
     } else { pmark.setLatLng([lat, lng]); pmap.setView([lat, lng], 17); }
     setTimeout(() => pmap && pmap.invalidateSize(), 60);
     pinMsg('✓ Confira se o pino está na sua casa. Arraste ou toque no mapa para ajustar.');
+  }
+  // ---------- Sugestões de endereço enquanto digita ----------
+  function setupStreetAC() {
+    const f = $('#checkout'), inp = f && f.street, list = $('#acList'); if (!inp || !list) return;
+    let t = null, seq = 0, items = [];
+    const hide = () => { list.hidden = true; list.innerHTML = ''; };
+    inp.addEventListener('input', () => {
+      clearTimeout(t); const q = inp.value.trim(); if (q.length < 3) return hide();
+      t = setTimeout(async () => {
+        const my = ++seq, s = S.settings, city = s.store_city || 'São Leopoldo, RS';
+        const bias = s.store_lat ? `&lat=${+s.store_lat}&lon=${+s.store_lng}` : '';
+        try {
+          const r = await fetch(`https://photon.komoot.io/api/?limit=6&lang=default${bias}&q=` + encodeURIComponent(q + ', ' + city));
+          const j = await r.json(); if (my !== seq) return;
+          items = (j.features || []).filter((x) => !x.properties.countrycode || x.properties.countrycode === 'BR').map((x) => {
+            const p = x.properties;
+            return { street: p.street || p.name, number: p.housenumber || '', district: p.district || p.locality || '', city: p.city || p.county || '', lat: x.geometry.coordinates[1], lng: x.geometry.coordinates[0] };
+          }).filter((x) => x.street);
+          if (!items.length) return hide();
+          list.innerHTML = items.map((x, i) => `<button type="button" class="ac-item" data-i="${i}"><b>📍 ${esc(x.street)}${x.number ? ', ' + esc(x.number) : ''}</b><small>${esc([x.district, x.city].filter(Boolean).join(' · '))}</small></button>`).join('');
+          list.hidden = false;
+        } catch { hide(); }
+      }, 300);
+    });
+    list.addEventListener('mousedown', (e) => e.preventDefault());
+    list.addEventListener('click', (e) => {
+      const b = e.target.closest('.ac-item'); if (!b) return; const x = items[+b.dataset.i];
+      inp.value = x.street; if (x.number && !f.number.value) f.number.value = x.number;
+      const nb = x.district && S.neighborhoods.find((n) => n.name.toLowerCase() === x.district.toLowerCase());
+      if (nb && !f.neighborhood_id.value) { f.neighborhood_id.value = nb.id; f.dispatchEvent(new Event('change')); }
+      hide(); showPin(x.lat, x.lng); if (!f.number.value) f.number.focus();
+    });
+    inp.addEventListener('blur', () => setTimeout(hide, 150));
   }
   async function findOnMap() {
     const f = $('#checkout'); if (!f) return;
