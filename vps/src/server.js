@@ -103,11 +103,10 @@ app.post('/api/auth/password', auth, wrap(async (req, res) => {
 // ---------- Público ----------
 app.get('/api/public/store', wrap(async (req, res) => {
   const s = await getSettings();
-  const show = s.show_sold_out === '1';
   const [cats, prods, nbs] = await Promise.all([
     q('SELECT id,name,description,image FROM categories WHERE active ORDER BY sort_order,id'),
     q(`SELECT id,category_id,name,description,image,unit,sale_price,promo_price,stock_quantity,status,featured
-       FROM products WHERE deleted_at IS NULL AND status<>'rascunho' ${show ? '' : "AND status='ativo' AND stock_quantity>0"} ORDER BY sort_order,name`),
+       FROM products WHERE deleted_at IS NULL AND status<>'rascunho' ORDER BY sort_order,name`),
     q('SELECT id,name,delivery_fee,estimated_minutes FROM neighborhoods WHERE active ORDER BY name'),
   ]);
   const pub = ['store_name', 'tagline', 'whatsapp', 'hero_title', 'hero_subtitle', 'hero_image', 'hero_enabled', 'logo', 'favicon', 'open_time', 'close_time', 'min_order', 'free_delivery_above', 'payment_methods', 'store_city', 'store_lat', 'store_lng'];
@@ -504,4 +503,8 @@ async function autoDeliver() {
 }
 setInterval(autoDeliver, 60 * 1000);
 
+// Garante colunas novas no banco (só ADICIONA, nunca apaga dados)
+pool.query(fs.readFileSync(path.join(__dirname, '..', 'db', 'schema.sql'), 'utf8'))
+  .then(() => console.log('Banco verificado'))
+  .catch((e) => console.error('Aviso schema:', e.message));
 app.listen(PORT, '127.0.0.1', () => console.log(`No Silva Drinks rodando em http://127.0.0.1:${PORT}`));

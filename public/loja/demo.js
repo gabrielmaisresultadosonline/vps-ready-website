@@ -109,7 +109,7 @@
       var show = s.show_sold_out === '1';
       return {
         settings: s, open: isOpen(), categories: db.categories.filter(function (c) { return c.active; }),
-        products: db.products.filter(function (p) { return p.status !== 'rascunho' && (show || (p.status === 'ativo' && p.stock_quantity > 0)); }).map(function (p) { return Object.assign({}, p, { available: p.status === 'ativo' && p.stock_quantity > 0 }); }),
+        products: db.products.filter(function (p) { return p.status !== 'rascunho'; }).map(function (p) { return Object.assign({}, p, { available: p.status === 'ativo' && p.stock_quantity > 0 }); }),
         neighborhoods: db.neighborhoods.filter(function (n) { return n.active; }),
       };
     }
