@@ -233,10 +233,10 @@
     } catch (e) { trackView(e.message); $('#trackForm [name=phone]').value = phone; }
   }
   function openTrack() { trackView(); $('#drawer').classList.add('open'); $('#overlay').classList.add('open'); document.body.style.overflow = 'hidden'; }
-  $('#trackBtn2').onclick = openTrack;
+  on('#trackBtn2', openTrack);
   document.addEventListener('click', (e) => { if (e.target.closest('[data-track]')) doTrack(); });
 
-  $('#cartBtn').onclick = openDrawer; $('#fab').onclick = openDrawer; $('#closeDrawer').onclick = closeDrawer; $('#overlay').onclick = closeDrawer;
+  on('#cartBtn', openDrawer); on('#fab', openDrawer); on('#closeDrawer', closeDrawer); on('#overlay', closeDrawer);
   document.addEventListener('keydown', (e) => e.key === 'Escape' && closeDrawer());
   $('#search').addEventListener('input', (e) => { term = e.target.value.toLowerCase().trim(); renderGrid(); });
 

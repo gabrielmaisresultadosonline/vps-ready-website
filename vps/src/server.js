@@ -490,7 +490,7 @@ app.use('/api/admin', A);
 // ---------- Arquivos estáticos ----------
 app.get('/admin', (req, res, next) => (req.originalUrl.split('?')[0].endsWith('/') ? next() : res.redirect('admin/')));
 app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '7d', index: false, dotfiles: 'deny' }));
-app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', index: 'index.html', redirect: false }));
+app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: 0, etag: true, index: 'index.html', redirect: false, setHeaders: (res, f) => { if (/\.(html|js|css)$/.test(f)) res.setHeader('Cache-Control', 'no-cache'); } }));
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
 // Baixa automática: pedido "a caminho" vira "entregue" após X minutos (padrão 40)
