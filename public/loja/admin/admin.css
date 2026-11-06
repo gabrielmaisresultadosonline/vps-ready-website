@@ -96,3 +96,8 @@ tr:hover td{background:rgba(240,0,121,.04)}
 .order-pop-box .row{display:flex;justify-content:space-between;align-items:center}
 .order-pop-box .actions{display:flex;gap:8px}.order-pop-box .actions>*{flex:1;text-align:center}
 @keyframes popin{from{transform:scale(.85);opacity:0}to{transform:none;opacity:1}}
+.live-feed{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;align-items:start}
+.live-card.is-new{animation:liveIn .6s ease-out,livePulse 1.4s ease-in-out 3}
+@keyframes liveIn{from{opacity:0;transform:translateY(-14px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes livePulse{50%{box-shadow:0 0 0 4px rgba(240,0,121,.55)}}
+.live-dot{animation:livePulse 1.2s infinite}

@@ -132,34 +132,22 @@
     async aovivo() {
       view.innerHTML = `<div class="live-top"><span class="live-dot"></span><b>AO VIVO</b><span class="muted" id="liveInfo">atualiza sozinho a cada 8 segundos</span><span class="spacer"></span>
         <button class="btn btn-ghost btn-sm" id="soundBtn">${soundOn ? '🔔 Som ligado' : '🔕 Ativar som'}</button></div>
-        <div class="live-grid"><div class="panel live-map-wrap"><div id="map" class="live-map"></div><div class="map-legend"><span><i style="background:#fff"></i>Loja</span><span><i style="background:#f59e0b"></i>Aguardando</span><span><i style="background:#F00079"></i>Preparo / a caminho</span><span><i style="background:#22c55e"></i>Entregue</span></div></div>
-        <div id="liveList" class="live-list"></div></div>`;
+        <div id="liveList" class="live-feed"></div>`;
       $('#soundBtn').onclick = () => { soundOn = !soundOn; localStorage.setItem('nsd_sound', soundOn ? '1' : '0'); if (soundOn) ding(); $('#soundBtn').textContent = soundOn ? '🔔 Som ligado' : '🔕 Ativar som'; };
-      await loadLeaflet();
-      const map = L.map('map', { zoomControl: true }).setView([-29.76, -51.15], 13);
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(map);
-      const layer = L.layerGroup().addTo(map); let fitted = false;
-      const color = (st) => st === 'entregue' ? '#22c55e' : st === 'aguardando' ? '#f59e0b' : st === 'cancelado' ? '#6b7280' : '#F00079';
-      const pin = (c, label) => L.divIcon({ className: '', html: `<div class="pin" style="--c:${c}"><span>${label}</span></div>`, iconSize: [34, 42], iconAnchor: [17, 40] });
       const mins = (d) => Math.max(0, Math.round((Date.now() - new Date(d)) / 60000));
       const NEXT = { aguardando: ['preparo', '👨‍🍳 Em preparação'], confirmado: ['preparo', '👨‍🍳 Em preparação'], preparo: ['saiu', '🛵 Pedido a caminho'], saiu: ['entregue', '✅ Entregue'] };
       const load = async () => {
-        if (!document.getElementById('map')) return;
+        if (!document.getElementById('liveList')) return;
         const d = await api('/admin/orders/live');
-        layer.clearLayers(); const pts = [];
-        if (d.store.lat) { L.marker([d.store.lat, d.store.lng], { icon: L.divIcon({ className: '', html: '<div class="pin store">🏠</div>', iconSize: [40, 40], iconAnchor: [20, 20] }) }).bindPopup('<b>Nossa loja</b><br>' + esc(d.store.address)).addTo(layer); pts.push([d.store.lat, d.store.lng]); }
-        d.orders.filter((o) => o.lat && o.status !== 'cancelado').forEach((o) => {
-          L.marker([o.lat, o.lng], { icon: pin(color(o.status), o.order_number) }).bindPopup(`<b>#${String(o.order_number).padStart(6, '0')}</b> — ${esc(o.customer_name)}<br>${esc(o.neighborhood_name || '')}, ${esc(o.address || '')}<br>${STATUS[o.status][0]} · ${brl(o.total)}`).addTo(layer);
-          pts.push([o.lat, o.lng]);
-          if (d.store.lat && ['saiu'].includes(o.status)) L.polyline([[d.store.lat, d.store.lng], [o.lat, o.lng]], { color: '#F00079', weight: 2, dashArray: '6 6' }).addTo(layer);
-        });
-        if (!fitted && pts.length) { pts.length > 1 ? map.fitBounds(pts, { padding: [40, 40], maxZoom: 15 }) : map.setView(pts[0], 15); fitted = true; }
+        const rank = (o) => ({ aguardando: 0, confirmado: 1, preparo: 1, saiu: 2, entregue: 3, cancelado: 4 }[o.status] ?? 5);
+        d.orders.sort((x, y) => rank(x) - rank(y) || new Date(y.created_at) - new Date(x.created_at));
+        const seenBefore = window._liveSeen || new Set(); window._liveSeen = new Set(d.orders.map((o) => o.id));
         const active = d.orders.filter((o) => !['entregue', 'cancelado'].includes(o.status));
-        $('#liveInfo').textContent = `${active.length} em andamento · ${d.orders.filter((o) => o.status === 'entregue').length} entregues hoje${d.store.lat ? '' : ' · cadastre o endereço da loja em Configurações'}`;
-        $('#liveList').innerHTML = d.orders.map((o) => `<div class="live-card st-${o.status}" data-id="${o.id}">
+        $('#liveInfo').textContent = `${active.length} em andamento · ${d.orders.filter((o) => o.status === 'entregue').length} entregues hoje`;
+        $('#liveList').innerHTML = d.orders.map((o) => `<div class="live-card st-${o.status}${seenBefore.size && !seenBefore.has(o.id) ? ' is-new' : ''}" data-id="${o.id}">
           <div class="row"><b class="ln">#${String(o.order_number).padStart(6, '0')}</b>${pill(o.status)}</div>
           <div><b>${esc(o.customer_name)}</b> <span class="muted">${esc(o.customer_phone || '')}</span></div>
-          <div class="muted">${esc(o.neighborhood_name || (o.source === 'manual' ? 'Venda manual' : ''))} ${esc(o.address || '')}${o.lat || o.source === 'manual' ? '' : ' · <a href="#" data-locate>📍 marcar no mapa</a>'}</div>
+          <div class="muted">${esc(o.neighborhood_name || (o.source === 'manual' ? 'Venda manual' : ''))} ${esc(o.address || '')}</div>
           <div class="items">${o.items.map((i) => `${i.quantity}× ${esc(i.name)}`).join(' · ')}</div>
           ${o.notes ? `<div class="muted">Obs: ${esc(o.notes)}</div>` : ''}
           <div class="row"><b>${brl(o.total)}</b><span class="muted">${esc(o.payment_method || '')} · há ${mins(o.created_at)} min</span></div>
@@ -178,7 +166,6 @@
         const card = e.target.closest('[data-id]'); if (!card) return; const id = card.dataset.id;
         if (e.target.dataset.go) setSt(id, e.target.dataset.go);
         if (e.target.hasAttribute('data-del') && confirm('Excluir este pedido de vez? O estoque volta e o lançamento financeiro some.')) { await api('/admin/orders/' + id, { method: 'DELETE' }); toast('Pedido excluído'); load(); }
-        if (e.target.hasAttribute('data-locate')) { e.preventDefault(); toast('Clique no mapa onde fica a entrega'); map.once('click', async (ev) => { await api(`/admin/orders/${id}/locate`, { method: 'POST', body: { lat: ev.latlng.lat, lng: ev.latlng.lng } }); toast('Local salvo ✓'); load(); }); }
       };
       $('#liveList').onchange = (e) => { const card = e.target.closest('[data-id]'); if (e.target.hasAttribute('data-set') && e.target.value) setSt(card.dataset.id, e.target.value); };
       liveRefresh = load; await load();
@@ -421,7 +408,7 @@
         <li>Pedidos novos aparecem <b>sozinhos</b> (a cada ~8 segundos), sem recarregar.</li>
         <li>Ao chegar pedido, em <b>qualquer tela do painel</b> abre uma janela no meio da tela com os dados do pedido e toca um <b>som</b> que repete até você clicar em “Ver pedido” ou “Fechar”.</li>
         <li>O botão 🔔/🔕 liga ou desliga o som. Os navegadores só tocam som depois de você clicar uma vez na página.</li>
-        <li><b>Mapa</b>: 🏠 é a sua loja; cada número é um pedido do dia no local da entrega. Se um endereço não for achado, clique em “📍 marcar no mapa” e depois no local certo.</li>
+        <li><b>Lista ao vivo</b>: os pedidos novos entram no topo com destaque piscando; os em andamento ficam primeiro e os entregues/cancelados no fim.</li>
         <li>Botão principal muda o pedido passo a passo: <b>Recebido → Em preparação → A caminho</b>. Quando fica “A caminho”, depois do tempo configurado (padrão 40 min) ele vira <b>Entregue</b> automaticamente.</li>
         <li>“Alterar…” volta ou muda o status, inclusive <b>Cancelar</b>. “Excluir” apaga o pedido e devolve o estoque.</li>
         <li>Pagamento em dinheiro mostra o <b>troco</b>: “Troco para R$ 100 → levar R$ 87,50”.</li></ul>`)}
@@ -442,7 +429,7 @@
         <li>Lance despesas como aluguel, luz, motoboy, embalagens, com categoria e forma de pagamento.</li><li>Filtre por período e veja saldo.</li></ul>`)}
       ${sec('👥', 'Clientes', 'clientes', `<p>Clientes são salvos automaticamente pelo telefone a cada pedido: nome, endereço, quantidade de pedidos, total gasto e último pedido. Clique para falar no WhatsApp.</p>`)}
       ${sec('⚙️', 'Configurações', 'configuracoes', `<ul><li><b>WhatsApp</b> que recebe os pedidos (com 55 + DDD).</li><li><b>Formas de pagamento</b> (ex.: Pix, Dinheiro, Cartão). Com “Dinheiro”, o cliente informa se precisa de troco e o sistema calcula.</li>
-        <li><b>Endereço da loja</b>: ponto inicial do mapa. <b>Minutos para baixa automática</b> (padrão 40).</li>
+        <li><b>Endereço da loja</b>: usado nos dados da loja. <b>Minutos para baixa automática</b> (padrão 40).</li>
         <li><b>Horário</b> de abertura/fechamento ou forçar aberto/fechado. Mostrar ou esconder esgotados.</li><li>Banner, logo e favicon. Trocar sua senha.</li>
         <li><b>Zerar dados</b>: apaga estoque, pedidos, financeiro e/ou produtos para começar do zero. Pede a sua senha e uma confirmação.</li></ul>`)}
       ${sec('🛒', 'Como o cliente compra', '', `<ol><li>Na loja, escolhe os produtos e toca em “Finalizar pedido”.</li><li>Preenche nome, WhatsApp, bairro, endereço e forma de pagamento (e troco, se for dinheiro).</li>
@@ -455,9 +442,9 @@
       view.innerHTML = `<form id="cfg" class="cols">
         <div class="panel form"><h3 class="field full">Loja e WhatsApp</h3>${f('store_name', 'Nome da loja')}${f('tagline', 'Texto do cabeçalho')}
           ${f('whatsapp', 'WhatsApp que recebe pedidos (com DDI e DDD, ex. 5551999999999)', 'tel')}${f('payment_methods', 'Formas de pagamento (separadas por vírgula)')}</div>
-        <div class="panel form"><h3 class="field full">Endereço da loja (ponto inicial do mapa)</h3>${f('store_address', 'Rua e número da loja')}${f('store_city', 'Cidade, UF')}
+        <div class="panel form"><h3 class="field full">Endereço da loja</h3>${f('store_address', 'Rua e número da loja')}${f('store_city', 'Cidade, UF')}
           ${f('auto_deliver_minutes', 'Minutos para baixa automática como entregue', 'number', 'min="5"')}
-          <p class="muted field full">${s.store_lat ? '📍 Localização encontrada no mapa ✓' : 'Depois de salvar, a loja aparece no mapa de Pedidos ao vivo.'}</p></div>
+          <p class="muted field full"></p></div>
         <div class="panel form"><h3 class="field full">Horário de funcionamento</h3>${f('open_time', 'Abre às', 'time')}${f('close_time', 'Fecha às', 'time')}
           <div class="field full"><label>Modo</label><select name="store_open"><option value="auto">Automático pelo horário</option><option value="1" ${s.store_open === '1' ? 'selected' : ''}>Forçar ABERTO</option><option value="0" ${s.store_open === '0' ? 'selected' : ''}>Forçar FECHADO</option></select></div>
           <div class="field full"><label>Produtos esgotados na loja</label><select name="show_sold_out"><option value="1">Mostrar como ESGOTADO</option><option value="0" ${s.show_sold_out === '0' ? 'selected' : ''}>Esconder</option></select></div></div>

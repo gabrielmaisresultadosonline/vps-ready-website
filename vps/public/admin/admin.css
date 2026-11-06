@@ -105,3 +105,8 @@ tr:hover td{background:rgba(240,0,121,.04)}
 .tut summary{cursor:pointer;padding:14px 16px;font-weight:800;display:flex;gap:10px;align-items:center;list-style:none}
 .tut summary::after{content:'+';margin-left:auto;font-size:1.3rem;color:var(--pink,#ff2e88)}.tut[open] summary::after{content:'−'}
 .tut-body{padding:0 16px 16px;line-height:1.6}.tut-body ul,.tut-body ol{padding-left:20px;margin:6px 0 12px}.tut-body li{margin:4px 0}
+.live-feed{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;align-items:start}
+.live-card.is-new{animation:liveIn .6s ease-out,livePulse 1.4s ease-in-out 3}
+@keyframes liveIn{from{opacity:0;transform:translateY(-14px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes livePulse{50%{box-shadow:0 0 0 4px rgba(240,0,121,.55)}}
+.live-dot{animation:livePulse 1.2s infinite}
