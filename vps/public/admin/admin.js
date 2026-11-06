@@ -286,13 +286,14 @@
           ${list.map((p) => `<tr><td><b>${esc(p.name)}</b><br><span class="muted">${esc(p.category_name || '')}</span></td>
             <td><b>${p.stock_quantity}</b> ${p.stock_quantity == 0 ? '<span class="pill bad">ESGOTADO</span>' : false ? '<span class="pill warn">BAIXO</span>' : ''}</td>
             <td>${brl(p.current_cost)}</td><td>${brl(p.sale_price)}</td><td>${brl(p.stock_quantity * p.sale_price)}</td><td>${p.total_bought} / ${p.total_out}</td>
-            <td><div class="actions"><button class="btn btn-primary btn-sm" data-entry="${p.id}">+ Entrada</button><button class="btn btn-ghost btn-sm" data-hist="${p.id}">Histórico</button></div></td></tr>`).join('')}</tbody></table></div>`;
+            <td><div class="actions"><button class="btn btn-primary btn-sm" data-entry="${p.id}">+ Entrada</button><button class="btn btn-ghost btn-sm" data-hist="${p.id}">Histórico</button><button class="btn btn-ghost btn-sm" style="color:#fca5a5;border-color:#ef4444" data-sdel="${p.id}">Excluir</button></div></td></tr>`).join('')}</tbody></table></div>`;
       };
       const load = async () => { prods = await api('/admin/products'); render(); };
       $('#f').onchange = render; $('#q').oninput = render;
       view.onclick = async (e) => {
         const b = e.target.closest('button'); if (!b) return;
-        const p = prods.find((x) => x.id == (b.dataset.entry || b.dataset.hist));
+        const p = prods.find((x) => x.id == (b.dataset.entry || b.dataset.hist || b.dataset.sdel));
+        if (b.dataset.sdel) { if (!confirm(`Excluir "${p.name}" de vez? O produto e o estoque dele somem. Pedidos antigos continuam com o nome.`)) return; await api('/admin/products/' + p.id, { method: 'DELETE' }); toast('Produto excluído ✓'); return load(); }
         if (b.dataset.entry) modal('Entrada: ' + p.name, `<form class="form">
           <div class="field"><label>Quantidade comprada</label><input name="quantity" type="number" min="1" required></div>
           <div class="field"><label>Custo total (R$)</label><input name="total_cost" type="number" step="0.01" min="0" required></div>
