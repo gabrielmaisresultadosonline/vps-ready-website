@@ -134,8 +134,6 @@ h1,h2,h3,.display{font-family:'Bebas Neue','Oswald',Impact,sans-serif;letter-spa
   .header .container{height:60px;gap:8px}
   .brand img{height:36px}
   .brand-name{font-size:22px}
-  .status span{display:none}
-  .status{padding:8px}
   .grid{grid-template-columns:repeat(2,1fr);gap:10px}
   .card-body{padding:10px}
   .card h3{font-size:14px}
@@ -193,5 +191,9 @@ h1,h2,h3,.display{font-family:'Bebas Neue','Oswald',Impact,sans-serif;letter-spa
   .tabs{justify-content:flex-start}
   .hero .container{padding:28px 0}
   .hero-img{display:none}
+  .hero-ctas{flex-direction:column;align-items:center}
+  .hero-ctas .btn{width:100%;max-width:320px;justify-content:center}
+  .status{font-size:13px;font-weight:700;color:var(--ok)}
+  .status.closed{color:#ef4444}
   .footer{text-align:center}
 }

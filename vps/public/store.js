@@ -233,7 +233,7 @@
     } catch (e) { trackView(e.message); $('#trackForm [name=phone]').value = phone; }
   }
   function openTrack() { trackView(); $('#drawer').classList.add('open'); $('#overlay').classList.add('open'); document.body.style.overflow = 'hidden'; }
-  $('#trackBtn').onclick = openTrack; $('#trackBtn2').onclick = openTrack;
+  $('#trackBtn2').onclick = openTrack;
   document.addEventListener('click', (e) => { if (e.target.closest('[data-track]')) doTrack(); });
 
   $('#cartBtn').onclick = openDrawer; $('#fab').onclick = openDrawer; $('#closeDrawer').onclick = closeDrawer; $('#overlay').onclick = closeDrawer;
@@ -253,7 +253,7 @@
       $('#tagline').textContent = $('#footTag').textContent = s.tagline || '';
       $('#waBtn').href = 'https://wa.me/' + String(s.whatsapp || '').replace(/\D/g, '');
       $('#status').className = 'status' + (S.open ? '' : ' closed');
-      $('#status span').textContent = S.open ? `Aberto · até ${s.close_time}` : `Fechado · abre ${s.open_time}`;
+      $('#status span').textContent = S.open ? `Aberto até ${s.close_time}` : `Fechado · abre ${s.open_time}`;
       for (const id of Object.keys(cart)) { const p = prod(id); if (!p || !p.available) delete cart[id]; else if (cart[id] > p.stock_quantity) cart[id] = p.stock_quantity; }
       save(); renderTabs(); renderGrid(); renderBadge();
     } catch { $('#grid').innerHTML = '<p class="empty">Não foi possível carregar os produtos. Tente novamente.</p>'; }
