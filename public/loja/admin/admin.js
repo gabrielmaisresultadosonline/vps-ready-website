@@ -110,7 +110,7 @@
           <div class="panel"><h3>Últimos 12 meses — faturamento, lucro e despesas</h3><div class="chart-box"><canvas id="c2"></canvas></div></div>
           <div class="panel"><h3>Produtos mais vendidos</h3><div class="chart-box"><canvas id="c3"></canvas></div></div>
           <div class="panel"><h3>Categorias mais vendidas</h3><div class="chart-box"><canvas id="c4"></canvas></div></div>
-          <div class="panel"><h3>⚠ Estoque baixo / esgotado</h3>${d.low_stock.length ? d.low_stock.map((p) => `<div class="row" style="padding:6px 0"><span>${esc(p.name)}</span>${p.stock_quantity == 0 ? '<span class="pill bad">ESGOTADO</span>' : `<span class="pill warn">${p.stock_quantity} un (mín ${p.minimum_stock})</span>`}</div>`).join('') : '<p class="muted">Tudo certo ✓</p>'}</div>
+          <div class="panel"><h3>⚠ Produtos esgotados</h3>${d.low_stock.length ? d.low_stock.map((p) => `<div class="row" style="padding:6px 0"><span>${esc(p.name)}</span>${p.stock_quantity == 0 ? '<span class="pill bad">ESGOTADO</span>' : ''}</div>`).join('') : '<p class="muted">Tudo certo ✓</p>'}</div>
           <div class="panel"><h3>Caixa no período</h3><div class="chart-box"><canvas id="c5"></canvas></div></div>
         </div>`;
         const go = () => {
@@ -253,7 +253,7 @@
         const t = $('#q').value.toLowerCase();
         $('#qk').innerHTML = prods.filter((p) => p.status !== 'rascunho' && p.name.toLowerCase().includes(t)).map((p) => `<div class="quick-card" data-id="${p.id}">
           <div class="top"><b>${esc(p.name)}</b><span class="stock">${p.stock_quantity}</span></div>
-          ${p.stock_quantity == 0 ? '<span class="pill bad">PRODUTO ESGOTADO</span>' : p.stock_quantity <= p.minimum_stock ? '<span class="pill warn">ESTOQUE BAIXO</span>' : ''}
+          ${p.stock_quantity == 0 ? '<span class="pill bad">PRODUTO ESGOTADO</span>' : false ? '<span class="pill warn">ESTOQUE BAIXO</span>' : ''}
           <div class="btns">${[1, 2, 5, 10].map((n) => `<button class="btn btn-primary btn-sm" data-n="${n}" ${p.stock_quantity < n ? 'disabled' : ''}>-${n}</button>`).join('')}</div>
           <div class="manual"><input type="number" min="1" placeholder="Qtd"><button class="btn btn-ghost btn-sm" data-manual>DAR BAIXA</button></div></div>`).join('');
       };
@@ -275,17 +275,17 @@
     },
 
     async estoque() {
-      view.innerHTML = `<div class="toolbar"><div class="field"><label>Filtro</label><select id="f"><option value="">Todos</option><option value="low">Estoque baixo</option><option value="zero">Sem estoque</option><option value="ok">Estoque disponível</option></select></div><input class="search" id="q" placeholder="Buscar…"></div><div id="sum" class="kpis"></div><div id="list"></div>`;
+      view.innerHTML = `<div class="toolbar"><div class="field"><label>Filtro</label><select id="f"><option value="">Todos</option><option value="zero">Sem estoque</option><option value="ok">Estoque disponível</option></select></div><input class="search" id="q" placeholder="Buscar…"></div><div id="sum" class="kpis"></div><div id="list"></div>`;
       let prods = [];
       const render = () => {
         const f = $('#f').value, t = $('#q').value.toLowerCase();
-        const list = prods.filter((p) => p.status !== 'rascunho' && p.name.toLowerCase().includes(t) && (!f || (f === 'zero' ? p.stock_quantity == 0 : f === 'low' ? p.stock_quantity > 0 && p.stock_quantity <= p.minimum_stock : p.stock_quantity > p.minimum_stock)));
+        const list = prods.filter((p) => p.status !== 'rascunho' && p.name.toLowerCase().includes(t) && (!f || (f === 'zero' ? p.stock_quantity == 0 : p.stock_quantity > 0)));
         const cost = prods.reduce((a, p) => a + p.stock_quantity * p.current_cost, 0), pot = prods.reduce((a, p) => a + p.stock_quantity * p.sale_price, 0);
-        $('#sum').innerHTML = `<div class="kpi"><small>Valor em estoque (custo)</small><b>${brl(cost)}</b></div><div class="kpi hl"><small>Valor potencial de venda</small><b>${brl(pot)}</b></div><div class="kpi"><small>Itens com estoque baixo</small><b>${prods.filter((p) => p.stock_quantity <= p.minimum_stock && p.status !== 'rascunho').length}</b></div>`;
-        $('#list').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Produto</th><th>Estoque</th><th>Mín.</th><th>Custo un.</th><th>Preço</th><th>Potencial</th><th>Comprado / Saídas</th><th>Ações</th></tr></thead><tbody>
+        $('#sum').innerHTML = `<div class="kpi"><small>Valor em estoque (custo)</small><b>${brl(cost)}</b></div><div class="kpi hl"><small>Valor potencial de venda</small><b>${brl(pot)}</b></div><div class="kpi"><small>Itens esgotados</small><b>${prods.filter((p) => p.stock_quantity == 0 && p.status !== 'rascunho').length}</b></div>`;
+        $('#list').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Produto</th><th>Estoque</th><th>Custo un.</th><th>Preço</th><th>Potencial</th><th>Comprado / Saídas</th><th>Ações</th></tr></thead><tbody>
           ${list.map((p) => `<tr><td><b>${esc(p.name)}</b><br><span class="muted">${esc(p.category_name || '')}</span></td>
-            <td><b>${p.stock_quantity}</b> ${p.stock_quantity == 0 ? '<span class="pill bad">ESGOTADO</span>' : p.stock_quantity <= p.minimum_stock ? '<span class="pill warn">BAIXO</span>' : ''}</td>
-            <td>${p.minimum_stock}</td><td>${brl(p.current_cost)}</td><td>${brl(p.sale_price)}</td><td>${brl(p.stock_quantity * p.sale_price)}</td><td>${p.total_bought} / ${p.total_out}</td>
+            <td><b>${p.stock_quantity}</b> ${p.stock_quantity == 0 ? '<span class="pill bad">ESGOTADO</span>' : false ? '<span class="pill warn">BAIXO</span>' : ''}</td>
+            <td>${brl(p.current_cost)}</td><td>${brl(p.sale_price)}</td><td>${brl(p.stock_quantity * p.sale_price)}</td><td>${p.total_bought} / ${p.total_out}</td>
             <td><div class="actions"><button class="btn btn-primary btn-sm" data-entry="${p.id}">+ Entrada</button><button class="btn btn-ghost btn-sm" data-hist="${p.id}">Histórico</button></div></td></tr>`).join('')}</tbody></table></div>`;
       };
       const load = async () => { prods = await api('/admin/products'); render(); };
@@ -313,12 +313,12 @@
       view.innerHTML = `<div class="toolbar"><button class="btn btn-primary" id="new">+ Novo produto</button><input class="search" id="q" placeholder="Buscar…"></div><div id="list"></div>`;
       const render = () => {
         const t = $('#q').value.toLowerCase();
-        $('#list').innerHTML = `<div class="table-wrap"><table><thead><tr><th></th><th>Produto</th><th>Categoria</th><th>Preço</th><th>Estoque</th><th>Estoque mín.</th><th>Status</th><th></th></tr></thead><tbody>
+        $('#list').innerHTML = `<div class="table-wrap"><table><thead><tr><th></th><th>Produto</th><th>Categoria</th><th>Preço</th><th>Estoque</th><th>Status</th><th></th></tr></thead><tbody>
         ${prods.filter((p) => p.name.toLowerCase().includes(t)).map((p) => `<tr><td>${p.image ? `<img src="${esc(src(p.image))}" style="width:48px;height:48px;object-fit:cover;border-radius:8px">` : ''}</td>
           <td><b>${esc(p.name)}</b>${p.featured ? ' <span class="pill pink">destaque</span>' : ''}<br><span class="muted">${esc(p.description || '')}</span></td><td>${esc(p.category_name || '')}</td>
-          <td>${brl(p.sale_price)}${+p.promo_price ? `<br><span class="pill pink">promo ${brl(p.promo_price)}</span>` : ''}</td><td>${p.stock_quantity}${p.stock_quantity == 0 ? ' <span class="pill bad">ESGOTADO</span>' : p.stock_quantity <= p.minimum_stock ? ' <span class="pill warn">BAIXO</span>' : ''}</td><td>${p.minimum_stock ?? 0}</td>
+          <td>${brl(p.sale_price)}${+p.promo_price ? `<br><span class="pill pink">promo ${brl(p.promo_price)}</span>` : ''}</td><td>${p.stock_quantity}${p.stock_quantity == 0 ? ' <span class="pill bad">ESGOTADO</span>' : false ? ' <span class="pill warn">BAIXO</span>' : ''}</td>
           <td><span class="pill ${p.status === 'ativo' ? 'ok' : p.status === 'rascunho' ? '' : 'warn'}">${p.status}</span></td>
-          <td><button class="btn btn-ghost btn-sm" data-edit="${p.id}">Editar</button></td></tr>`).join('')}</tbody></table></div>`;
+          <td><button class="btn btn-ghost btn-sm" data-edit="${p.id}">Editar</button> <button class="btn btn-ghost btn-sm" style="color:#fca5a5;border-color:#ef4444" data-del="${p.id}">Excluir</button></td></tr>`).join('')}</tbody></table></div>`;
       };
       const form = (p = {}) => {
         modal(p.id ? 'Editar produto' : 'Novo produto', `<form class="form">
@@ -330,7 +330,6 @@
           <div class="field"><label>Preço promocional</label><input name="promo_price" type="number" step="0.01" value="${p.promo_price ?? ''}"></div>
           <div class="field"><label>Custo unitário</label><input name="current_cost" type="number" step="0.01" value="${p.current_cost ?? ''}"></div>
           ${p.id ? '' : '<div class="field"><label>Estoque inicial</label><input name="stock_quantity" type="number" min="0" value="0"></div>'}
-          <div class="field"><label>Estoque mínimo</label><input name="minimum_stock" type="number" min="0" value="${p.minimum_stock ?? 5}"></div>
           <div class="field"><label>Status</label><select name="status">${['ativo', 'indisponivel', 'rascunho'].map((s) => `<option ${s === p.status ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
           <div class="field"><label>Destaque na home</label><select name="featured"><option value="">Não</option><option value="1" ${p.featured ? 'selected' : ''}>Sim</option></select></div>
           <div class="field"><label>Ordem de exibição</label><input name="sort_order" type="number" value="${p.sort_order ?? 0}"></div>
@@ -340,7 +339,10 @@
         bindImgFields($('#modalBody'));
       };
       $('#new').onclick = () => form(); $('#q').oninput = render;
-      view.onclick = (e) => { const b = e.target.closest('[data-edit]'); b && form(prods.find((p) => p.id == b.dataset.edit)); };
+      view.onclick = async (e) => {
+        const d = e.target.closest('[data-del]');
+        if (d) { const p = prods.find((x) => x.id == d.dataset.del); if (!confirm(`Excluir "${p.name}" de vez? O produto e o estoque dele somem. Pedidos antigos continuam com o nome.`)) return; await api('/admin/products/' + p.id, { method: 'DELETE' }); toast('Produto excluído ✓'); return pages.produtos(); }
+        const b = e.target.closest('[data-edit]'); b && form(prods.find((p) => p.id == b.dataset.edit)); };
       render();
     },
 
@@ -413,7 +415,7 @@
       ${sec('📊', 'Dashboard', 'dashboard', `<p>Resumo do negócio no período escolhido (hoje, 7 dias, 30 dias, mês, etc.).</p><ul>
         <li><b>Faturamento bruto</b>: total vendido (produtos + entregas).</li><li><b>Custo da mercadoria (CMV)</b> e <b>Lucro bruto</b>: quanto custou o que foi vendido e quanto sobrou.</li>
         <li><b>Despesas</b> e <b>Resultado líquido</b>: lucro menos as saídas do financeiro.</li><li><b>Recebido / Pendente</b>: pedidos pagos e a receber.</li>
-        <li>Gráficos de faturamento diário, últimos 12 meses, produtos e categorias mais vendidos, e alerta de <b>estoque baixo/esgotado</b>.</li></ul>`)}
+        <li>Gráficos de faturamento diário, últimos 12 meses, produtos e categorias mais vendidos, e alerta de <b>produtos esgotados</b>.</li></ul>`)}
       ${sec('🛵', 'Pedidos ao vivo', 'aovivo', `<p>A tela de trabalho do dia. Deixe aberta no computador ou celular.</p><ul>
         <li>Pedidos novos aparecem <b>sozinhos</b> (a cada ~8 segundos), sem recarregar.</li>
         <li>Ao chegar pedido, em <b>qualquer tela do painel</b> abre uma janela no meio da tela com os dados do pedido e toca um <b>som</b> que repete até você clicar em “Ver pedido” ou “Fechar”.</li>
@@ -427,12 +429,12 @@
         <li>O estoque só é descontado quando o pedido é confirmado (em preparação, a caminho ou entregue). Cancelar devolve o estoque.</li></ul>`)}
       ${sec('➕', 'Venda manual', 'venda', `<p>Para vendas no balcão ou pedidos feitos por telefone. Escolha os produtos e quantidades, cliente (opcional), forma de pagamento e taxa de entrega. Já desconta o estoque e, se marcado como pago, lança no financeiro.</p>`)}
       ${sec('⚡', 'Baixa rápida', 'baixa', `<p>Botões grandes −1, −2, −5, −10 para tirar do estoque na hora (consumo, quebra, brinde). Ideal para usar no celular.</p>`)}
-      ${sec('📦', 'Estoque', 'estoque', `<ul><li>Veja quantidade, estoque mínimo, custo, valor em estoque e itens com estoque baixo ou esgotado.</li>
+      ${sec('📦', 'Estoque', 'estoque', `<ul><li>Veja quantidade, custo, valor em estoque e itens esgotados.</li>
         <li><b>Entrada de mercadoria</b>: quantidade, custo unitário, fornecedor e forma de pagamento. Atualiza o custo do produto e lança a saída no financeiro.</li>
         <li>Histórico de movimentações com opção de <b>estornar</b> um lançamento errado.</li></ul>`)}
-      ${sec('🍾', 'Produtos', 'produtos', `<ul><li>Cadastre nome, descrição, foto (envio ou link), categoria, unidade, preço de venda, <b>preço promocional</b>, custo, estoque inicial e <b>estoque mínimo</b>.</li>
+      ${sec('🍾', 'Produtos', 'produtos', `<ul><li>Cadastre nome, descrição, foto (envio ou link), categoria, unidade, preço de venda, <b>preço promocional</b>, custo, e <b>estoque inicial</b>.</li>
         <li>Status: <b>ativo</b> (aparece na loja), <b>indisponível</b> (aparece como esgotado) ou <b>rascunho</b> (escondido).</li>
-        <li>Marque <b>destaque</b> para aparecer primeiro. Quando o estoque fica no mínimo ou abaixo, aparece o aviso “BAIXO”.</li></ul>`)}
+        <li>Marque <b>destaque</b> para aparecer primeiro. Quando o estoque chega a 0, aparece “ESGOTADO”. O botão <b>Excluir</b> apaga o produto de vez (pedidos antigos mantêm o nome); para só esconder, use o status <b>rascunho</b>.</li></ul>`)}
       ${sec('🗂️', 'Categorias', 'categorias', `<p>Crie, renomeie, ordene e desative as abas da loja (ex.: Alcoólicos, Não alcoólicos, Itens variados).</p>`)}
       ${sec('📍', 'Bairros e taxas', 'bairros', `<p>Cadastre cada bairro atendido com a <b>taxa de entrega</b> e o tempo estimado. O cliente escolhe o bairro no pedido e a taxa entra no total. Desative bairros que não atende mais.</p>`)}
       ${sec('💰', 'Financeiro', 'financeiro', `<ul><li>Todas as entradas e saídas: vendas pagas e compras de estoque entram sozinhas (“auto”).</li>

@@ -286,7 +286,13 @@ A.put('/products/:id', wrap(async (req, res) => {
   res.json(r.rows[0]);
 }));
 A.delete('/products/:id', wrap(async (req, res) => {
-  await q("UPDATE products SET status='rascunho' WHERE id=$1", [req.params.id]); // nunca apaga: preserva histórico
+  const id = req.params.id; // apaga de vez; pedidos antigos mantêm o nome do produto
+  await tx(async (c) => {
+    await c.query('UPDATE order_items SET product_id=NULL WHERE product_id=$1', [id]);
+    await c.query('UPDATE finance_entries SET stock_movement_id=NULL WHERE stock_movement_id IN (SELECT id FROM stock_movements WHERE product_id=$1)', [id]);
+    await c.query('DELETE FROM stock_movements WHERE product_id=$1', [id]);
+    await c.query('DELETE FROM products WHERE id=$1', [id]);
+  });
   res.json({ ok: true });
 }));
 
@@ -465,7 +471,7 @@ A.get('/dashboard', wrap(async (req, res) => {
        COALESCE(SUM(amount) FILTER (WHERE type='entrada'),0) cash_in, COALESCE(SUM(amount) FILTER (WHERE type='saida'),0) cash_out
        FROM finance_entries WHERE entry_date BETWEEN $1 AND $2`, [from, to]),
     q(`SELECT COUNT(*) FILTER (WHERE status='aguardando') pending, COUNT(*) FILTER (WHERE status='entregue' AND created_at::date BETWEEN $1 AND $2) done FROM orders`, [from, to]),
-    q(`SELECT id,name,stock_quantity,minimum_stock FROM products WHERE status<>'rascunho' AND stock_quantity<=minimum_stock ORDER BY stock_quantity`),
+    q(`SELECT id,name,stock_quantity,minimum_stock FROM products WHERE status<>'rascunho' AND stock_quantity<=0 ORDER BY stock_quantity`),
     q('SELECT COUNT(*) n FROM customers'),
     q(`SELECT d::date AS day, COALESCE(SUM(o.total),0) total FROM generate_series($1::date,$2::date,'1 day') d LEFT JOIN orders o ON o.created_at::date=d::date AND o.stock_applied GROUP BY d ORDER BY d`, [from, to]),
     q(`SELECT i.product_name_snapshot name, SUM(i.quantity) qty, SUM(i.quantity*i.unit_price) total FROM order_items i JOIN orders o ON o.id=i.order_id WHERE ${conf} GROUP BY 1 ORDER BY 2 DESC LIMIT 8`, [from, to]),

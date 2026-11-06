@@ -157,7 +157,7 @@
         var c = byId(db.categories, p.category_id), mv = db.movements.filter(function (x) { return x.product_id === p.id; });
         return Object.assign({}, p, { category_name: c ? c.name : null, total_bought: mv.filter(function (x) { return x.type === 'entrada'; }).reduce(function (a, x) { return a + x.quantity; }, 0), total_out: -mv.filter(function (x) { return x.type !== 'entrada'; }).reduce(function (a, x) { return a + x.quantity; }, 0) });
       });
-      if (method === 'DELETE') { byId(db.products, m[1]).status = 'rascunho'; return { ok: true }; }
+      if (method === 'DELETE') { db.products = db.products.filter(function (x) { return String(x.id) !== String(m[1]); }); return { ok: true }; }
       var fields = { category_id: num(body.category_id) || null, name: body.name, description: body.description, image: body.image, unit: body.unit || 'un', sale_price: num(body.sale_price), promo_price: body.promo_price ? num(body.promo_price) : null, current_cost: num(body.current_cost), minimum_stock: num(body.minimum_stock), status: body.status || 'ativo', featured: !!body.featured, sort_order: num(body.sort_order) };
       if (m[1]) return Object.assign(byId(db.products, m[1]), fields);
       var np = Object.assign({ id: ++db.seq.prod, stock_quantity: 0 }, fields); db.products.push(np);
@@ -234,7 +234,7 @@
         cash_in: sum(fin.filter(function (f) { return f.type === 'entrada'; }), function (f) { return f.amount; }), cash_out: sum(fin.filter(function (f) { return f.type === 'saida'; }), function (f) { return f.amount; }),
         pending: db.orders.filter(function (o) { return o.status === 'aguardando'; }).length,
         done: db.orders.filter(function (o) { var d = dateOf(o.created_at); return o.status === 'entregue' && d >= from && d <= to; }).length,
-        customers: db.customers.length, low_stock: db.products.filter(function (p) { return p.status !== 'rascunho' && p.stock_quantity <= p.minimum_stock; }),
+        customers: db.customers.length, low_stock: db.products.filter(function (p) { return p.status !== 'rascunho' && p.stock_quantity <= 0; }),
       };
       K.gross_profit = K.products_rev - K.cmv; K.net_profit = K.gross_profit + K.delivery_rev + K.other_income - K.expenses;
       var daily = []; for (var d = new Date(from + 'T12:00:00'); dateOf(d) <= to && daily.length < 400; d.setDate(d.getDate() + 1)) { var ds = dateOf(d); daily.push({ day: ds, total: sum(conf.filter(function (o) { return dateOf(o.created_at) === ds; }), function (o) { return o.total; }) }); }
