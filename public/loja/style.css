@@ -166,3 +166,31 @@ h1,h2,h3,.display{font-family:'Bebas Neue','Oswald',Impact,sans-serif;letter-spa
 .pay-opt span{display:block;text-align:center;padding:11px 8px;border-radius:12px;border:1.5px solid rgba(255,255,255,.18);font-weight:700;font-size:.9rem}
 .pay-opt input:checked+span{border-color:var(--pink,#ff2e88);background:rgba(255,46,136,.15)}
 .change-calc{margin-top:8px;font-size:.92rem}.change-calc b{color:#3ddc84;font-size:1.05rem}.change-calc .bad{color:#ff6b6b}
+/* Mapa de confirmação no checkout */
+.map-tools{display:flex;gap:8px;flex-wrap:wrap}
+.map-tools .btn{flex:1;min-width:150px;font-size:13px;padding:10px}
+.pin-map{height:240px;border-radius:14px;overflow:hidden;border:1px solid var(--line);margin-top:10px;background:var(--bg2)}
+.pin-msg{display:block;margin-top:6px;color:var(--gray);font-size:12px}
+/* Celular: cardápio logo no topo, cabeçalho compacto e centralizado */
+@media (max-width:560px){
+  body{display:flex;flex-direction:column;min-height:100vh}
+  .header{order:0}
+  main#produtos{order:1}
+  .hero{order:2}
+  .footer{order:3}
+  .header .container{height:auto;flex-wrap:wrap;justify-content:center;padding:10px 0;gap:8px}
+  .header .spacer{display:none}
+  .brand{width:100%;justify-content:center;text-align:center}
+  .brand img{height:30px}
+  .brand-txt{align-items:center}
+  .brand-name{font-size:20px}
+  .brand-sub{font-size:11px}
+  #produtos.section{padding:18px 0 32px}
+  .section-head{flex-direction:column;align-items:center;text-align:center;gap:10px;margin-bottom:14px}
+  .section-head h2{font-size:32px}
+  .search{width:100%}
+  .tabs{justify-content:flex-start}
+  .hero .container{padding:28px 0}
+  .hero-img{display:none}
+  .footer{text-align:center}
+}

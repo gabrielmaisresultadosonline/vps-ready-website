@@ -84,6 +84,10 @@
       <div class="field"><label>Número *</label><input name="number" required value="${v('number')}"></div>
       <div class="field"><label>Complemento</label><input name="complement" value="${v('complement')}"></div>
       <div class="field"><label>Referência</label><input name="reference" value="${v('reference')}"></div>
+      <div class="field full"><label>Confirme sua localização no mapa</label>
+        <div class="map-tools"><button type="button" class="btn btn-ghost" data-findmap>🔎 Buscar endereço no mapa</button><button type="button" class="btn btn-ghost" data-gps>📍 Usar minha localização</button></div>
+        <div id="pinMap" class="pin-map" ${pin ? '' : 'hidden'}></div>
+        <small id="pinMsg" class="pin-msg">${pin ? '✓ Local marcado. Arraste o pino ou toque no mapa para ajustar.' : 'Preencha bairro, rua e número e toque em “Buscar endereço no mapa”.'}</small></div>
       <div class="field full"><label>Forma de pagamento *</label><div class="pay-opts">${pm.map((p, k) => `<label class="pay-opt"><input type="radio" name="payment_method" value="${esc(p)}" ${(saved.payment_method ? saved.payment_method === p : k === 0) ? 'checked' : ''}><span>${/pix/i.test(p) ? '⚡' : /dinheiro/i.test(p) ? '💵' : '💳'} ${esc(p)}</span></label>`).join('')}</div></div>
       <div class="field full" id="cashBox" hidden><label>Precisa de troco?</label><div class="pay-opts"><label class="pay-opt"><input type="radio" name="need_change" value="0" checked><span>Não preciso</span></label><label class="pay-opt"><input type="radio" name="need_change" value="1"><span>Sim, preciso</span></label></div>
         <div id="changeBox" hidden style="margin-top:8px"><label>Troco para quanto?</label><input name="change_for" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Ex.: 100"><div id="changeCalc" class="change-calc"></div></div></div>
@@ -106,6 +110,53 @@
       if ($('#drawerFoot')._h !== html) { $('#drawerFoot').innerHTML = html; $('#drawerFoot')._h = html; }
     };
     $('#drawerFoot')._h = null; $('#checkout').addEventListener('change', upd); $('#checkout').addEventListener('input', upd); upd();
+    pmap = null; if (pin) showPin(pin.lat, pin.lng);
+  }
+
+  // ---------- Mapa de confirmação do endereço ----------
+  let pin = null, pmap = null, pmark = null, leafletP = null;
+  const loadLeaflet = () => leafletP || (leafletP = new Promise((ok, no) => {
+    if (window.L) return ok();
+    const c = document.createElement('link'); c.rel = 'stylesheet'; c.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.appendChild(c);
+    const s = document.createElement('script'); s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; s.onload = ok; s.onerror = () => { leafletP = null; no(new Error('Mapa indisponível')); }; document.head.appendChild(s);
+  }));
+  const pinMsg = (t) => { const m = $('#pinMsg'); if (m) m.textContent = t; };
+  async function showPin(lat, lng) {
+    pin = { lat, lng };
+    await loadLeaflet();
+    const el = $('#pinMap'); if (!el) return; el.hidden = false;
+    if (!pmap || pmap.getContainer() !== el) {
+      pmap = L.map(el, { zoomControl: true }).setView([lat, lng], 17);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(pmap);
+      pmark = L.marker([lat, lng], { draggable: true }).addTo(pmap);
+      pmark.on('dragend', () => { const p = pmark.getLatLng(); pin = { lat: p.lat, lng: p.lng }; pinMsg('✓ Local ajustado.'); });
+      pmap.on('click', (e) => { pmark.setLatLng(e.latlng); pin = { lat: e.latlng.lat, lng: e.latlng.lng }; pinMsg('✓ Local ajustado.'); });
+    } else { pmark.setLatLng([lat, lng]); pmap.setView([lat, lng], 17); }
+    setTimeout(() => pmap && pmap.invalidateSize(), 60);
+    pinMsg('✓ Confira se o pino está na sua casa. Arraste ou toque no mapa para ajustar.');
+  }
+  async function findOnMap() {
+    const f = $('#checkout'); if (!f) return;
+    const nb = S.neighborhoods.find((n) => n.id == f.neighborhood_id.value);
+    const city = S.settings.store_city || 'São Leopoldo, RS';
+    if (!f.street.value.trim()) return pinMsg('Digite a rua primeiro.');
+    pinMsg('Buscando no mapa…');
+    const tries = [[f.street.value, f.number.value, nb && nb.name, city], [f.street.value, nb && nb.name, city], [f.street.value, city]];
+    for (const t of tries) {
+      try {
+        const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=' + encodeURIComponent(t.filter(Boolean).join(', ')));
+        const j = await r.json();
+        if (j[0]) return showPin(+j[0].lat, +j[0].lon);
+      } catch {}
+    }
+    const s = S.settings;
+    if (s.store_lat) { await showPin(+s.store_lat, +s.store_lng); pinMsg('Não achamos o endereço exato. Toque no mapa no local da sua casa.'); }
+    else pinMsg('Endereço não encontrado. Use “Usar minha localização”.');
+  }
+  function useGps() {
+    if (!navigator.geolocation) return pinMsg('Seu aparelho não permite localização.');
+    pinMsg('Pegando sua localização…');
+    navigator.geolocation.getCurrentPosition((p) => showPin(p.coords.latitude, p.coords.longitude), () => pinMsg('Não foi possível pegar a localização. Use a busca pelo endereço.'), { enableHighAccuracy: true, timeout: 10000 });
   }
 
   async function send(btn) {
@@ -119,10 +170,10 @@
     // Abre a janela já no clique (evita bloqueio de pop-up no celular)
     const win = window.open('', '_blank');
     try {
-      const r = await fetch('api/public/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...d, items: items().map((x) => ({ product_id: x.p.id, quantity: x.q })) }) });
+      const r = await fetch('api/public/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...d, ...(pin || {}), items: items().map((x) => ({ product_id: x.p.id, quantity: x.q })) }) });
       const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Erro ao enviar');
       if (win) win.location.href = j.whatsapp_url; else location.href = j.whatsapp_url;
-      cart = {}; save(); renderBadge(); load();
+      cart = {}; pin = null; save(); renderBadge(); load();
       $('#drawerTitle').textContent = 'PEDIDO ENVIADO';
       $('#drawerBody').innerHTML = `<div class="success"><div class="check">✓</div><h2>PEDIDO #${String(j.order_number).padStart(6, '0')}</h2>
         <p>Seu pedido foi registrado e preparado para envio no WhatsApp. <br>Status: <b>Aguardando confirmação</b>.</p>
@@ -145,6 +196,8 @@
     else if (t.hasAttribute('data-checkout')) { view = 'checkout'; renderDrawer(); }
     else if (t.hasAttribute('data-back')) { view = 'cart'; renderDrawer(); }
     else if (t.hasAttribute('data-send')) send(t);
+    else if (t.hasAttribute('data-findmap')) findOnMap();
+    else if (t.hasAttribute('data-gps')) useGps();
     else if (t.hasAttribute('data-close')) closeDrawer();
   });
   // ---------- Acompanhar pedido pelo telefone ----------

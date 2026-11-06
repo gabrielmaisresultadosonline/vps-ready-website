@@ -117,7 +117,7 @@
         id: ++db.seq.order, order_number: ++db.seq.num, customer_id: cust.id, customer_name: name, customer_phone: phone, neighborhood_name: nb.name,
         address: [body.street, body.number, body.complement].filter(Boolean).join(', '), subtotal: sub, delivery_fee: fee, total: sub + fee,
         payment_method: body.payment_method || null, change_for: /dinheiro/i.test(body.payment_method || '') && num(body.change_for) > sub + fee ? num(body.change_for) : null, payment_status: 'pendente', status: 'aguardando', source: 'site', notes: body.notes || null,
-        lat: nb.lat + (Math.random() - 0.5) * 0.012, lng: nb.lng + (Math.random() - 0.5) * 0.012, items: items, stock_applied: false, created_at: now(),
+        lat: body.lat ? num(body.lat) : nb.lat + (Math.random() - 0.5) * 0.012, lng: body.lng ? num(body.lng) : nb.lng + (Math.random() - 0.5) * 0.012, items: items, stock_applied: false, created_at: now(),
       };
       db.orders.unshift(o);
       var txt = '*NOVO PEDIDO — NO SILVA DRINKS*\nPedido: #' + String(o.order_number).padStart(6, '0') + '\nCliente: ' + name + '\n' + items.map(function (i) { return i.quantity + 'x ' + i.name; }).join('\n') + '\nTOTAL: R$ ' + o.total.toFixed(2);

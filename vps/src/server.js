@@ -110,7 +110,7 @@ app.get('/api/public/store', wrap(async (req, res) => {
        FROM products WHERE status<>'rascunho' ${show ? '' : "AND status='ativo' AND stock_quantity>0"} ORDER BY sort_order,name`),
     q('SELECT id,name,delivery_fee,estimated_minutes FROM neighborhoods WHERE active ORDER BY name'),
   ]);
-  const pub = ['store_name', 'tagline', 'whatsapp', 'hero_title', 'hero_subtitle', 'hero_image', 'logo', 'favicon', 'open_time', 'close_time', 'min_order', 'free_delivery_above', 'payment_methods'];
+  const pub = ['store_name', 'tagline', 'whatsapp', 'hero_title', 'hero_subtitle', 'hero_image', 'logo', 'favicon', 'open_time', 'close_time', 'min_order', 'free_delivery_above', 'payment_methods', 'store_city', 'store_lat', 'store_lng'];
   res.json({
     settings: Object.fromEntries(pub.map((k) => [k, s[k]])), open: isOpen(s), categories: cats.rows,
     products: prods.rows.map((p) => ({ ...p, available: p.status === 'ativo' && p.stock_quantity > 0 })),
@@ -161,7 +161,10 @@ app.post('/api/public/orders', wrap(async (req, res) => {
       'INSERT INTO order_items (order_id,product_id,product_name_snapshot,quantity,unit_price,unit_cost_snapshot) VALUES ($1,$2,$3,$4,$5,$6)',
       [o.id, l.p.id, l.p.name, l.qty, l.price, l.p.current_cost]);
     await client.query('COMMIT');
-    geocodeOrder(o.id, b.street, b.number, nb.name).catch(() => {});
+    const pLat = Number(b.lat), pLng = Number(b.lng);
+    if (b.lat !== undefined && b.lat !== '' && isFinite(pLat) && isFinite(pLng) && Math.abs(pLat) <= 90 && Math.abs(pLng) <= 180) {
+      await q('UPDATE orders SET lat=$1,lng=$2 WHERE id=$3', [pLat, pLng, o.id]);
+    } else geocodeOrder(o.id, b.street, b.number, nb.name).catch(() => {});
     const brl = (v) => 'R$ ' + v.toFixed(2).replace('.', ',');
     const fmtPhone = phone.length >= 10 ? `(${phone.slice(-11, -9) || phone.slice(0, 2)}) ${phone.slice(-9, -4)}-${phone.slice(-4)}` : phone;
     const msg = [
