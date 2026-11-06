@@ -293,7 +293,7 @@
       view.onclick = async (e) => {
         const b = e.target.closest('button'); if (!b) return;
         const p = prods.find((x) => x.id == (b.dataset.entry || b.dataset.hist || b.dataset.sdel));
-        if (b.dataset.sdel) { if (!confirm(`Excluir "${p.name}" de vez? O produto e o estoque dele somem. Pedidos antigos continuam com o nome.`)) return; await api('/admin/products/' + p.id, { method: 'DELETE' }); toast('Produto excluído ✓'); return load(); }
+        if (b.dataset.sdel) { if (!confirm(`Excluir "${p.name}"? Ele some da loja e do painel. O histórico de vendas, estoque e financeiro continua guardado.`)) return; await api('/admin/products/' + p.id, { method: 'DELETE' }); toast('Produto excluído ✓'); return load(); }
         if (b.dataset.entry) modal('Entrada: ' + p.name, `<form class="form">
           <div class="field"><label>Quantidade comprada</label><input name="quantity" type="number" min="1" required></div>
           <div class="field"><label>Custo total (R$)</label><input name="total_cost" type="number" step="0.01" min="0" required></div>
@@ -342,7 +342,7 @@
       $('#new').onclick = () => form(); $('#q').oninput = render;
       view.onclick = async (e) => {
         const d = e.target.closest('[data-del]');
-        if (d) { const p = prods.find((x) => x.id == d.dataset.del); if (!confirm(`Excluir "${p.name}" de vez? O produto e o estoque dele somem. Pedidos antigos continuam com o nome.`)) return; await api('/admin/products/' + p.id, { method: 'DELETE' }); toast('Produto excluído ✓'); return pages.produtos(); }
+        if (d) { const p = prods.find((x) => x.id == d.dataset.del); if (!confirm(`Excluir "${p.name}"? Ele some da loja e do painel. O histórico de vendas, estoque e financeiro continua guardado.`)) return; await api('/admin/products/' + p.id, { method: 'DELETE' }); toast('Produto excluído ✓'); return pages.produtos(); }
         const b = e.target.closest('[data-edit]'); b && form(prods.find((p) => p.id == b.dataset.edit)); };
       render();
     },
@@ -435,7 +435,7 @@
         <li>Histórico de movimentações com opção de <b>estornar</b> um lançamento errado.</li></ul>`)}
       ${sec('🍾', 'Produtos', 'produtos', `<ul><li>Cadastre nome, descrição, foto (envio ou link), categoria, unidade, preço de venda, <b>preço promocional</b>, custo, e <b>estoque inicial</b>.</li>
         <li>Status: <b>ativo</b> (aparece na loja), <b>indisponível</b> (aparece como esgotado) ou <b>rascunho</b> (escondido).</li>
-        <li>Marque <b>destaque</b> para aparecer primeiro. Quando o estoque chega a 0, aparece “ESGOTADO”. O botão <b>Excluir</b> apaga o produto de vez (pedidos antigos mantêm o nome); para só esconder, use o status <b>rascunho</b>.</li></ul>`)}
+        <li>Marque <b>destaque</b> para aparecer primeiro. Quando o estoque chega a 0, aparece “ESGOTADO”. O botão <b>Excluir</b> tira o produto da loja e do painel, mas o histórico de vendas e estoque continua guardado; para só esconder, use o status <b>rascunho</b>.</li></ul>`)}
       ${sec('🗂️', 'Categorias', 'categorias', `<p>Crie, renomeie, ordene e desative as abas da loja (ex.: Alcoólicos, Não alcoólicos, Itens variados).</p>`)}
       ${sec('📍', 'Bairros e taxas', 'bairros', `<p>Cadastre cada bairro atendido com a <b>taxa de entrega</b> e o tempo estimado. O cliente escolhe o bairro no pedido e a taxa entra no total. Desative bairros que não atende mais.</p>`)}
       ${sec('💰', 'Financeiro', 'financeiro', `<ul><li>Todas as entradas e saídas: vendas pagas e compras de estoque entram sozinhas (“auto”).</li>

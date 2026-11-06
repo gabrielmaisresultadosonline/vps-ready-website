@@ -1,7 +1,7 @@
 // Somente para a pré-visualização no Lovable: simula o servidor inteiro no navegador (dados salvos no localStorage).
 // Loja e painel compartilham os mesmos dados. Este arquivo NÃO vai para a VPS (lá tudo vem do banco PostgreSQL).
 (function () {
-  var KEY = 'nsd_demo_db_v2';
+  var KEY = 'nsd_demo_db_v1';
   var LOGIN = { email: 'mro@gmail.com', password: 'guilherme2129', name: 'Administrador' };
   var now = function () { return new Date().toISOString(); };
   var today = function () { var d = new Date(); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
@@ -273,4 +273,11 @@
     catch (e) { status = e.status || 500; out = { error: e.message }; }
     return Promise.resolve(new Response(JSON.stringify(out), { status: status, headers: { 'Content-Type': 'application/json' } }));
   };
+  // Aviso fixo no painel da pré-visualização: aqui os dados ficam só neste navegador
+  if (location.pathname.indexOf('/admin') >= 0) document.addEventListener('DOMContentLoaded', function () {
+    var b = document.createElement('div');
+    b.textContent = '⚠️ PRÉ-VISUALIZAÇÃO — o que você cadastra aqui fica só neste navegador. Cadastre seus produtos reais no painel do seu domínio.';
+    b.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#b45309;color:#fff;font:600 13px system-ui;padding:8px 12px;text-align:center';
+    document.body.appendChild(b);
+  });
 })();

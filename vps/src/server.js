@@ -107,7 +107,7 @@ app.get('/api/public/store', wrap(async (req, res) => {
   const [cats, prods, nbs] = await Promise.all([
     q('SELECT id,name,description,image FROM categories WHERE active ORDER BY sort_order,id'),
     q(`SELECT id,category_id,name,description,image,unit,sale_price,promo_price,stock_quantity,status,featured
-       FROM products WHERE status<>'rascunho' ${show ? '' : "AND status='ativo' AND stock_quantity>0"} ORDER BY sort_order,name`),
+       FROM products WHERE deleted_at IS NULL AND status<>'rascunho' ${show ? '' : "AND status='ativo' AND stock_quantity>0"} ORDER BY sort_order,name`),
     q('SELECT id,name,delivery_fee,estimated_minutes FROM neighborhoods WHERE active ORDER BY name'),
   ]);
   const pub = ['store_name', 'tagline', 'whatsapp', 'hero_title', 'hero_subtitle', 'hero_image', 'hero_enabled', 'logo', 'favicon', 'open_time', 'close_time', 'min_order', 'free_delivery_above', 'payment_methods', 'store_city', 'store_lat', 'store_lng'];
@@ -270,7 +270,7 @@ A.get('/products', wrap(async (req, res) => res.json((await q(`
   SELECT p.*, c.name AS category_name,
    COALESCE((SELECT SUM(quantity) FROM stock_movements WHERE product_id=p.id AND type='entrada'),0) AS total_bought,
    COALESCE((SELECT -SUM(quantity) FROM stock_movements WHERE product_id=p.id AND type IN ('venda','saida','estorno_venda','estorno')),0) AS total_out
-  FROM products p LEFT JOIN categories c ON c.id=p.category_id ORDER BY p.sort_order,p.name`)).rows)));
+  FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE p.deleted_at IS NULL ORDER BY p.sort_order,p.name`)).rows)));
 A.post('/products', wrap(async (req, res) => {
   const b = req.body;
   const r = await q(`INSERT INTO products(category_id,name,description,image,unit,sale_price,promo_price,current_cost,stock_quantity,minimum_stock,status,featured,sort_order)
@@ -286,13 +286,8 @@ A.put('/products/:id', wrap(async (req, res) => {
   res.json(r.rows[0]);
 }));
 A.delete('/products/:id', wrap(async (req, res) => {
-  const id = req.params.id; // apaga de vez; pedidos antigos mantêm o nome do produto
-  await tx(async (c) => {
-    await c.query('UPDATE order_items SET product_id=NULL WHERE product_id=$1', [id]);
-    await c.query('UPDATE finance_entries SET stock_movement_id=NULL WHERE stock_movement_id IN (SELECT id FROM stock_movements WHERE product_id=$1)', [id]);
-    await c.query('DELETE FROM stock_movements WHERE product_id=$1', [id]);
-    await c.query('DELETE FROM products WHERE id=$1', [id]);
-  });
+  // Exclusão segura: some do painel e da loja, mas o histórico (vendas, estoque, financeiro) fica guardado no banco
+  await q("UPDATE products SET deleted_at=now(), status='rascunho', updated_at=now() WHERE id=$1", [req.params.id]);
   res.json({ ok: true });
 }));
 
@@ -471,7 +466,7 @@ A.get('/dashboard', wrap(async (req, res) => {
        COALESCE(SUM(amount) FILTER (WHERE type='entrada'),0) cash_in, COALESCE(SUM(amount) FILTER (WHERE type='saida'),0) cash_out
        FROM finance_entries WHERE entry_date BETWEEN $1 AND $2`, [from, to]),
     q(`SELECT COUNT(*) FILTER (WHERE status='aguardando') pending, COUNT(*) FILTER (WHERE status='entregue' AND created_at::date BETWEEN $1 AND $2) done FROM orders`, [from, to]),
-    q(`SELECT id,name,stock_quantity,minimum_stock FROM products WHERE status<>'rascunho' AND stock_quantity<=0 ORDER BY stock_quantity`),
+    q(`SELECT id,name,stock_quantity,minimum_stock FROM products WHERE deleted_at IS NULL AND status<>'rascunho' AND stock_quantity<=0 ORDER BY stock_quantity`),
     q('SELECT COUNT(*) n FROM customers'),
     q(`SELECT d::date AS day, COALESCE(SUM(o.total),0) total FROM generate_series($1::date,$2::date,'1 day') d LEFT JOIN orders o ON o.created_at::date=d::date AND o.stock_applied GROUP BY d ORDER BY d`, [from, to]),
     q(`SELECT i.product_name_snapshot name, SUM(i.quantity) qty, SUM(i.quantity*i.unit_price) total FROM order_items i JOIN orders o ON o.id=i.order_id WHERE ${conf} GROUP BY 1 ORDER BY 2 DESC LIMIT 8`, [from, to]),

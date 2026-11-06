@@ -93,3 +93,6 @@ ON CONFLICT (key) DO NOTHING;
 
 -- Troco para pagamento em dinheiro
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS change_for NUMERIC(12,2);
+
+-- Exclusão segura de produtos (nunca apaga histórico)
+ALTER TABLE products ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;

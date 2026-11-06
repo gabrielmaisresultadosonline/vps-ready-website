@@ -39,15 +39,14 @@ pm2 status            # mro-api, video-server e nosilva-drinks online
 sudo nginx -t
 ```
 
-## Atualizar no futuro
+## Atualizar no futuro (seguro: faz backup antes e não apaga dados)
 ```bash
-cd /tmp && rm -rf nsd && git clone https://github.com/gabrielmaisresultadosonline/vps-ready-website.git nsd
-sudo rsync -a --delete --exclude node_modules --exclude .env /tmp/nsd/vps/ /var/www/nosilva-drinks/app/
-cd /var/www/nosilva-drinks/app && sudo npm install --omit=dev && sudo npm run init-db && pm2 restart nosilva-drinks
+cd /tmp && rm -rf nsd && git clone https://github.com/gabrielmaisresultadosonline/vps-ready-website.git nsd && sudo bash /tmp/nsd/vps/update.sh
 ```
-Fotos, senhas e o banco de dados (produtos, pedidos, configurações) ficam fora da pasta `app`, então a atualização não apaga nada.
+O script mostra a contagem de produtos/pedidos/clientes ANTES e DEPOIS e guarda um backup em `/var/www/nosilva-drinks/backups/`.
+Produtos, pedidos, clientes, estoque, financeiro e configurações ficam no PostgreSQL (banco `nosilva_drinks`), fora da pasta `app`. Excluir um produto no painel só o esconde: o histórico continua no banco.
 
-Para adicionar os 20 produtos de exemplo a qualquer momento: `cd /var/www/nosilva-drinks/app && sudo npm run demo-products`
+Para adicionar os 20 produtos de exemplo: `cd /var/www/nosilva-drinks/app && sudo npm run demo-products`
 
 ## Backup diário (guarda 14 dias)
 ```bash
