@@ -207,3 +207,4 @@ h1,h2,h3,.display{font-family:'Bebas Neue','Oswald',Impact,sans-serif;letter-spa
 .ac-item b{font-size:.95em;line-height:1.25}
 @media(max-width:560px){.ac-item{padding:12px}}
 .welcome{background:rgba(240,0,121,.12);border:1px solid rgba(240,0,121,.4);border-radius:10px;padding:10px 12px;font-size:.92em}
+.btn.fab,.btn.fab:hover{background:#FFD400;color:#000;border-color:#FFD400;box-shadow:0 10px 30px rgba(255,212,0,.45)}.btn.fab span{color:#000}
