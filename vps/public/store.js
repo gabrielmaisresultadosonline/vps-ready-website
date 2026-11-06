@@ -233,6 +233,7 @@
     } catch (e) { trackView(e.message); $('#trackForm [name=phone]').value = phone; }
   }
   function openTrack() { trackView(); $('#drawer').classList.add('open'); $('#overlay').classList.add('open'); document.body.style.overflow = 'hidden'; }
+  function on(sel, fn) { const el = document.querySelector(sel); if (el) el.onclick = fn; }
   on('#trackBtn2', openTrack);
   document.addEventListener('click', (e) => { if (e.target.closest('[data-track]')) doTrack(); });
 
