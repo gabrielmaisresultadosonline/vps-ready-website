@@ -241,7 +241,7 @@
     });
     if (path === 'dashboard') {
       var from = q.get('from') || today(), to = q.get('to') || from;
-      var conf = db.orders.filter(function (o) { var d = dateOf(o.created_at); return o.stock_applied && d >= from && d <= to; });
+      var conf = db.orders.filter(function (o) { var d = dateOf(o.created_at); return o.status !== 'cancelado' && d >= from && d <= to; });
       var sum = function (a, f) { return a.reduce(function (t, x) { return t + num(f(x)); }, 0); };
       var allItems = []; conf.forEach(function (o) { o.items.forEach(function (i) { allItems.push(i); }); });
       var fin = db.finance.filter(function (f) { return f.entry_date >= from && f.entry_date <= to; });
@@ -261,7 +261,7 @@
       var daily = []; for (var d = new Date(from + 'T12:00:00'); dateOf(d) <= to && daily.length < 400; d.setDate(d.getDate() + 1)) { var ds = dateOf(d); daily.push({ day: ds, total: sum(conf.filter(function (o) { return dateOf(o.created_at) === ds; }), function (o) { return o.total; }) }); }
       var top = {}; allItems.forEach(function (i) { top[i.name] = top[i.name] || { name: i.name, qty: 0, total: 0 }; top[i.name].qty += i.quantity; top[i.name].total += i.quantity * i.unit_price; });
       var cats = {}; allItems.forEach(function (i) { var p = byId(db.products, i.product_id), c = p && byId(db.categories, p.category_id), n = c ? c.name : 'Sem categoria'; cats[n] = (cats[n] || 0) + i.quantity * i.unit_price; });
-      var monthly = []; for (var k = 11; k >= 0; k--) { var md = new Date(); md.setDate(1); md.setMonth(md.getMonth() - k); var mk = dateOf(md).slice(0, 7); var mo2 = db.orders.filter(function (o) { return o.stock_applied && dateOf(o.created_at).slice(0, 7) === mk; }); monthly.push({ month: mk.slice(5) + '/' + mk.slice(0, 4), revenue: sum(mo2, function (o) { return o.total; }), gross_profit: sum(mo2, function (o) { return sum(o.items, function (i) { return i.quantity * (i.unit_price - i.unit_cost); }); }), expenses: sum(db.finance.filter(function (f) { return f.type === 'saida' && f.category !== 'Reposição de estoque' && f.entry_date.slice(0, 7) === mk; }), function (f) { return f.amount; }) }); }
+      var monthly = []; for (var k = 11; k >= 0; k--) { var md = new Date(); md.setDate(1); md.setMonth(md.getMonth() - k); var mk = dateOf(md).slice(0, 7); var mo2 = db.orders.filter(function (o) { return o.status !== 'cancelado' && dateOf(o.created_at).slice(0, 7) === mk; }); monthly.push({ month: mk.slice(5) + '/' + mk.slice(0, 4), revenue: sum(mo2, function (o) { return o.total; }), gross_profit: sum(mo2, function (o) { return sum(o.items, function (i) { return i.quantity * (i.unit_price - i.unit_cost); }); }), expenses: sum(db.finance.filter(function (f) { return f.type === 'saida' && f.category !== 'Reposição de estoque' && f.entry_date.slice(0, 7) === mk; }), function (f) { return f.amount; }) }); }
       return Object.assign(K, { daily: daily, top_products: Object.values(top).sort(function (a, b) { return b.qty - a.qty; }).slice(0, 8), categories: Object.keys(cats).map(function (n) { return { name: n, total: cats[n] }; }), monthly: monthly });
     }
     err('Não encontrado', 404);

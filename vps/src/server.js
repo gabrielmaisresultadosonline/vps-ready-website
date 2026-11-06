@@ -496,7 +496,7 @@ A.get('/customers/:id/orders', wrap(async (req, res) => res.json((await q('SELEC
 // Dashboard / relatórios (CMV usa custo histórico do item vendido)
 A.get('/dashboard', wrap(async (req, res) => {
   const from = req.query.from || new Date().toISOString().slice(0, 10), to = req.query.to || from;
-  const conf = `o.stock_applied AND o.created_at::date BETWEEN $1 AND $2`;
+  const conf = `o.status<>'cancelado' AND (o.created_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $1::date AND $2::date`;
   const [k, fin, pend, low, cust, daily, top, cats, monthly] = await Promise.all([
     q(`SELECT COUNT(DISTINCT o.id) sales, COALESCE(SUM(o.subtotal),0) products_rev, COALESCE(SUM(o.delivery_fee),0) delivery_rev, COALESCE(SUM(o.total),0) gross,
        COALESCE(SUM(o.total) FILTER (WHERE o.payment_status='pago'),0) received, COALESCE(SUM(o.total) FILTER (WHERE o.payment_status<>'pago'),0) pending_amount,
@@ -508,17 +508,17 @@ A.get('/dashboard', wrap(async (req, res) => {
        COALESCE(SUM(amount) FILTER (WHERE type='entrada' AND order_id IS NULL),0) other_income,
        COALESCE(SUM(amount) FILTER (WHERE type='entrada'),0) cash_in, COALESCE(SUM(amount) FILTER (WHERE type='saida'),0) cash_out
        FROM finance_entries WHERE entry_date BETWEEN $1 AND $2`, [from, to]),
-    q(`SELECT COUNT(*) FILTER (WHERE status='aguardando') pending, COUNT(*) FILTER (WHERE status='entregue' AND created_at::date BETWEEN $1 AND $2) done FROM orders`, [from, to]),
+    q(`SELECT COUNT(*) FILTER (WHERE status='aguardando') pending, COUNT(*) FILTER (WHERE status='entregue' AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $1::date AND $2::date) done FROM orders`, [from, to]),
     q(`SELECT id,name,stock_quantity,minimum_stock FROM products WHERE deleted_at IS NULL AND status<>'rascunho' AND stock_quantity<=0 ORDER BY stock_quantity`),
     q('SELECT COUNT(*) n FROM customers'),
-    q(`SELECT d::date AS day, COALESCE(SUM(o.total),0) total FROM generate_series($1::date,$2::date,'1 day') d LEFT JOIN orders o ON o.created_at::date=d::date AND o.stock_applied GROUP BY d ORDER BY d`, [from, to]),
+    q(`SELECT d::date AS day, COALESCE(SUM(o.total),0) total FROM generate_series($1::date,$2::date,'1 day') d LEFT JOIN orders o ON (o.created_at AT TIME ZONE 'America/Sao_Paulo')::date=d::date AND o.status<>'cancelado' GROUP BY d ORDER BY d`, [from, to]),
     q(`SELECT i.product_name_snapshot name, SUM(i.quantity) qty, SUM(i.quantity*i.unit_price) total FROM order_items i JOIN orders o ON o.id=i.order_id WHERE ${conf} GROUP BY 1 ORDER BY 2 DESC LIMIT 8`, [from, to]),
     q(`SELECT COALESCE(c.name,'Sem categoria') name, SUM(i.quantity*i.unit_price) total FROM order_items i JOIN orders o ON o.id=i.order_id LEFT JOIN products p ON p.id=i.product_id LEFT JOIN categories c ON c.id=p.category_id WHERE ${conf} GROUP BY 1 ORDER BY 2 DESC`, [from, to]),
     q(`SELECT to_char(m,'MM/YYYY') AS month,
-       COALESCE((SELECT SUM(total) FROM orders WHERE stock_applied AND date_trunc('month',created_at)=m),0) revenue,
-       COALESCE((SELECT SUM(i.quantity*(i.unit_price-i.unit_cost_snapshot)) FROM order_items i JOIN orders o ON o.id=i.order_id WHERE o.stock_applied AND date_trunc('month',o.created_at)=m),0) gross_profit,
+       COALESCE((SELECT SUM(total) FROM orders WHERE status<>'cancelado' AND date_trunc('month',created_at AT TIME ZONE 'America/Sao_Paulo')=m),0) revenue,
+       COALESCE((SELECT SUM(i.quantity*(i.unit_price-i.unit_cost_snapshot)) FROM order_items i JOIN orders o ON o.id=i.order_id WHERE o.status<>'cancelado' AND date_trunc('month',o.created_at AT TIME ZONE 'America/Sao_Paulo')=m),0) gross_profit,
        COALESCE((SELECT SUM(amount) FROM finance_entries WHERE type='saida' AND category<>'Reposição de estoque' AND date_trunc('month',entry_date)=m),0) expenses
-       FROM generate_series(date_trunc('month',now())-interval '11 months',date_trunc('month',now()),'1 month') m ORDER BY m`),
+       FROM generate_series(date_trunc('month',now() AT TIME ZONE 'America/Sao_Paulo')-interval '11 months',date_trunc('month',now() AT TIME ZONE 'America/Sao_Paulo'),'1 month') m ORDER BY m`),
   ]);
   const K = k.rows[0], F = fin.rows[0];
   const grossProfit = num(K.products_rev) - num(K.cmv);
