@@ -15,6 +15,18 @@ const { Pool } = require('pg');
     `INSERT INTO admin_users(name,email,password_hash) VALUES($1,$2,$3) ON CONFLICT(email) DO NOTHING`,
     ['Administrador', email, await bcrypt.hash(pass, 10)]
   );
+  // Produtos de exemplo: só na primeira vez (se você excluir, não voltam)
+  const flag = await pool.query("SELECT 1 FROM settings WHERE key='demo_seeded'");
+  if (!flag.rowCount) {
+    const has = await pool.query('SELECT COUNT(*)::int n FROM products');
+    if (has.rows[0].n === 0) {
+      for (const [i, [cat, name, unit, sale, promo, cost, qty, feat, img]] of require('./demo-products').entries())
+        await pool.query(`INSERT INTO products(category_id,name,unit,sale_price,promo_price,current_cost,stock_quantity,featured,image,sort_order) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          [cat, name, unit, sale, promo, cost, qty, feat, 'img/produtos/' + img + '.jpg', i]);
+      console.log('20 produtos de exemplo criados.');
+    }
+    await pool.query("INSERT INTO settings(key,value) VALUES('demo_seeded','1') ON CONFLICT(key) DO NOTHING");
+  }
   console.log('Banco pronto. Login do painel:', email);
   await pool.end();
 })().catch((e) => { console.error(e.message); process.exit(1); });

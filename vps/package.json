@@ -6,7 +6,8 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "init-db": "node scripts/init-db.js"
+    "init-db": "node scripts/init-db.js",
+    "demo-products": "node scripts/add-demo-products.js"
   },
   "engines": { "node": ">=18" },
   "dependencies": {

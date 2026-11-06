@@ -45,7 +45,9 @@ cd /tmp && rm -rf nsd && git clone https://github.com/gabrielmaisresultadosonlin
 sudo rsync -a --delete --exclude node_modules --exclude .env /tmp/nsd/vps/ /var/www/nosilva-drinks/app/
 cd /var/www/nosilva-drinks/app && sudo npm install --omit=dev && sudo npm run init-db && pm2 restart nosilva-drinks
 ```
-Fotos e senhas ficam fora da pasta `app`, então não se perdem.
+Fotos, senhas e o banco de dados (produtos, pedidos, configurações) ficam fora da pasta `app`, então a atualização não apaga nada.
+
+Para adicionar os 20 produtos de exemplo a qualquer momento: `cd /var/www/nosilva-drinks/app && sudo npm run demo-products`
 
 ## Backup diário (guarda 14 dias)
 ```bash

@@ -1,7 +1,7 @@
 // Somente para a pré-visualização no Lovable: simula o servidor inteiro no navegador (dados salvos no localStorage).
 // Loja e painel compartilham os mesmos dados. Este arquivo NÃO vai para a VPS (lá tudo vem do banco PostgreSQL).
 (function () {
-  var KEY = 'nsd_demo_db_v1';
+  var KEY = 'nsd_demo_db_v2';
   var LOGIN = { email: 'mro@gmail.com', password: 'guilherme2129', name: 'Administrador' };
   var now = function () { return new Date().toISOString(); };
   var today = function () { var d = new Date(); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
@@ -12,7 +12,7 @@
   };
   function seed() {
     return {
-      seq: { cat: 3, prod: 10, nb: 3, cust: 0, order: 0, num: 0, mv: 0, fin: 0 },
+      seq: { cat: 3, prod: 20, nb: 3, cust: 0, order: 0, num: 0, mv: 0, fin: 0 },
       settings: {
         store_name: 'No Silva Drinks', tagline: 'Você da Campina, São Leopoldo', whatsapp: '5551999999999',
         hero_title: 'SUA BEBIDA FAVORITA CHEGA ATÉ VOCÊ!', hero_subtitle: 'Escolha, peça e receba sem sair de casa.',
@@ -22,11 +22,26 @@
       },
       categories: [{ id: 1, name: 'ALCOÓLICOS', active: true, sort_order: 0 }, { id: 2, name: 'NÃO ALCOÓLICOS', active: true, sort_order: 1 }, { id: 3, name: 'ITENS VARIADOS', active: true, sort_order: 2 }],
       products: [
-        P(1, 1, 'Cerveja Heineken Long Neck', 'un', 8.9, 7.5, 5, 48, true), P(2, 1, 'Cerveja Brahma Lata 350ml', 'un', 4.5, null, 2.8, 120),
-        P(3, 1, 'Vodka Smirnoff 998ml', 'un', 49.9, 44.9, 30, 12, true), P(4, 1, 'Whisky Red Label 1L', 'un', 129.9, null, 90, 6),
-        P(5, 1, 'Gin Tanqueray 750ml', 'un', 139.9, null, 95, 0), P(6, 2, 'Energético Red Bull 250ml', 'un', 11.9, null, 7, 40, true),
-        P(7, 2, 'Coca-Cola 2L', 'un', 12.9, null, 8, 30), P(8, 2, 'Água Mineral 500ml', 'un', 3.5, null, 1.2, 60),
-        P(9, 3, 'Gelo 5kg', 'pct', 15, null, 7, 25), P(10, 3, 'Carvão 4kg', 'pct', 22, null, 12, 10),
+        Object.assign(P(1, 1, "Cerveja Heineken Long Neck 330ml", 'un', 8.9, 7.5, 5, 48, true), { image: 'img/produtos/01.jpg' }),
+        Object.assign(P(2, 1, "Cerveja Lata 350ml", 'un', 4.5, null, 2.8, 120, false), { image: 'img/produtos/02.jpg' }),
+        Object.assign(P(3, 1, "Vodka 998ml", 'un', 49.9, 44.9, 30, 12, true), { image: 'img/produtos/03.jpg' }),
+        Object.assign(P(4, 1, "Whisky 12 anos 700ml", 'un', 129.9, null, 90, 6, false), { image: 'img/produtos/04.jpg' }),
+        Object.assign(P(5, 1, "Gin London Dry 700ml", 'un', 99.9, null, 65, 8, false), { image: 'img/produtos/05.jpg' }),
+        Object.assign(P(6, 2, "Energético 250ml", 'un', 11.9, null, 7, 40, true), { image: 'img/produtos/06.jpg' }),
+        Object.assign(P(7, 2, "Refrigerante Cola 2L", 'un', 12.9, null, 8, 30, false), { image: 'img/produtos/07.jpg' }),
+        Object.assign(P(8, 2, "Água Mineral 500ml", 'un', 3.5, null, 1.2, 60, false), { image: 'img/produtos/08.jpg' }),
+        Object.assign(P(9, 3, "Gelo 5kg", 'pct', 15, null, 7, 25, false), { image: 'img/produtos/09.jpg' }),
+        Object.assign(P(10, 3, "Carvão 5kg", 'pct', 24, null, 12, 10, false), { image: 'img/produtos/10.jpg' }),
+        Object.assign(P(11, 1, "Caipirinha de Limão", 'un', 18, 15.9, 6, 50, true), { image: 'img/produtos/11.jpg' }),
+        Object.assign(P(12, 1, "Cachaça 700ml", 'un', 29.9, null, 16, 15, false), { image: 'img/produtos/12.jpg' }),
+        Object.assign(P(13, 1, "Vinho Tinto 750ml", 'un', 59.9, null, 35, 10, false), { image: 'img/produtos/13.jpg' }),
+        Object.assign(P(14, 1, "Espumante 750ml", 'un', 69.9, 59.9, 40, 8, false), { image: 'img/produtos/14.jpg' }),
+        Object.assign(P(15, 1, "Rum Branco 700ml", 'un', 54.9, null, 32, 9, false), { image: 'img/produtos/15.jpg' }),
+        Object.assign(P(16, 2, "Guaraná Lata 350ml", 'un', 5.5, null, 3, 80, false), { image: 'img/produtos/16.jpg' }),
+        Object.assign(P(17, 2, "Suco de Laranja 1L", 'un', 14.9, null, 8, 20, false), { image: 'img/produtos/17.jpg' }),
+        Object.assign(P(18, 1, "Pack 6 Cervejas Lata", 'pct', 29.9, 26.9, 18, 20, true), { image: 'img/produtos/18.jpg' }),
+        Object.assign(P(19, 3, "Batata Chips 120g", 'un', 9.9, null, 5, 35, false), { image: 'img/produtos/19.jpg' }),
+        Object.assign(P(20, 3, "Copos Descartáveis (10 un)", 'pct', 7.9, null, 3, 40, false), { image: 'img/produtos/20.jpg' }),
       ],
       neighborhoods: [
         { id: 1, name: 'Campina', delivery_fee: 5, estimated_minutes: 30, active: true, lat: -29.735, lng: -51.15 },
