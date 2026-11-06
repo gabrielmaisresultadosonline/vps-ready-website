@@ -203,3 +203,6 @@ h1,h2,h3,.display{font-family:'Bebas Neue','Oswald',Impact,sans-serif;letter-spa
 .ac-item{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;padding:10px 12px;background:none;border:0;border-bottom:1px solid rgba(255,255,255,.08);color:inherit;cursor:pointer;font:inherit}
 .ac-item:hover{background:rgba(255,255,255,.08)}
 .ac-item small{opacity:.7;font-size:.8em}
+.ac-list{max-height:min(320px,50vh)}
+.ac-item b{font-size:.95em;line-height:1.25}
+@media(max-width:560px){.ac-item{padding:12px}}

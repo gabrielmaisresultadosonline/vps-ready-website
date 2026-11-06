@@ -100,6 +100,40 @@ app.post('/api/auth/password', auth, wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// ---------- Endereços (Google Places API New) ----------
+// Requer GOOGLE_MAPS_API_KEY no .env (Places API (New) ativada). Sem chave, a loja usa o mapa gratuito.
+const GKEY = () => process.env.GOOGLE_MAPS_API_KEY || '';
+const acCache = new Map();
+app.get('/api/public/places/autocomplete', wrap(async (req, res) => {
+  if (!GKEY()) return res.status(501).json({ error: 'sem chave google' });
+  const input = String(req.query.q || '').trim().slice(0, 120), token = String(req.query.s || '').slice(0, 64);
+  if (input.length < 3) return res.json({ items: [] });
+  const s = await getSettings(), ck = input.toLowerCase();
+  if (acCache.has(ck)) return res.json({ items: acCache.get(ck) });
+  const body = { input, sessionToken: token || undefined, includedRegionCodes: ['br'], languageCode: 'pt-BR' };
+  if (s.store_lat) body.locationBias = { circle: { center: { latitude: +s.store_lat, longitude: +s.store_lng }, radius: 30000 } };
+  const r = await fetch('https://places.googleapis.com/v1/places:autocomplete', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': GKEY(), 'X-Goog-FieldMask': 'suggestions.placePrediction.placeId,suggestions.placePrediction.structuredFormat' },
+    body: JSON.stringify(body) });
+  if (!r.ok) { console.error('Google autocomplete', r.status, await r.text()); return res.status(502).json({ error: 'google ' + r.status }); }
+  const j = await r.json();
+  const items = (j.suggestions || []).filter((x) => x.placePrediction).map((x) => ({ id: x.placePrediction.placeId,
+    main: x.placePrediction.structuredFormat?.mainText?.text || '', secondary: x.placePrediction.structuredFormat?.secondaryText?.text || '' }));
+  if (acCache.size > 500) acCache.clear(); acCache.set(ck, items);
+  res.json({ items });
+}));
+app.get('/api/public/places/details', wrap(async (req, res) => {
+  if (!GKEY()) return res.status(501).json({ error: 'sem chave google' });
+  const id = String(req.query.id || ''); if (!/^[\w-]{10,300}$/.test(id)) throw bad('id inválido');
+  const token = String(req.query.s || '').slice(0, 64);
+  const r = await fetch(`https://places.googleapis.com/v1/places/${id}?languageCode=pt-BR${token ? '&sessionToken=' + encodeURIComponent(token) : ''}`,
+    { headers: { 'X-Goog-Api-Key': GKEY(), 'X-Goog-FieldMask': 'addressComponents,location' } });
+  if (!r.ok) { console.error('Google details', r.status, await r.text()); return res.status(502).json({ error: 'google ' + r.status }); }
+  const j = await r.json(), c = (t) => (j.addressComponents || []).find((a) => a.types.includes(t))?.longText || '';
+  res.json({ street: c('route'), number: c('street_number'), district: c('sublocality_level_1') || c('sublocality') || c('neighborhood'),
+    city: c('administrative_area_level_2') || c('locality'), lat: j.location?.latitude, lng: j.location?.longitude });
+}));
+
 // ---------- Público ----------
 app.get('/api/public/store', wrap(async (req, res) => {
   const s = await getSettings();

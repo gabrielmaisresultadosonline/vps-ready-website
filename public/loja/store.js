@@ -84,14 +84,14 @@
       <div class="field"><label>Número *</label><input name="number" required value="${v('number')}"></div>
       <div class="field"><label>Complemento</label><input name="complement" value="${v('complement')}"></div>
       <div class="field"><label>Referência</label><input name="reference" value="${v('reference')}"></div>
-      <div class="field full"><label>Confirme sua localização no mapa</label>
-        <div class="map-tools"><button type="button" class="btn btn-ghost" data-findmap>🔎 Buscar endereço no mapa</button><button type="button" class="btn btn-ghost" data-gps>📍 Usar minha localização</button></div>
+      <div class="field full"><label>Localização (opcional)</label>
+        <div class="map-tools"><button type="button" class="btn btn-ghost" data-gps>📍 Usar minha localização atual</button></div>
         <div id="pinMap" class="pin-map" ${pin ? '' : 'hidden'}></div>
-        <small id="pinMsg" class="pin-msg">${pin ? '✓ Local marcado. Arraste o pino ou toque no mapa para ajustar.' : 'Preencha bairro, rua e número e toque em “Buscar endereço no mapa”.'}</small></div>
+        <small id="pinMsg" class="pin-msg">${pin ? '✓ Local marcado. Arraste o pino ou toque no mapa para ajustar.' : 'Escolha a rua na lista de sugestões ou toque em “Usar minha localização atual”.'}</small></div>
       <div class="field full"><label>Forma de pagamento *</label><div class="pay-opts">${pm.map((p, k) => `<label class="pay-opt"><input type="radio" name="payment_method" value="${esc(p)}" ${(saved.payment_method ? saved.payment_method === p : k === 0) ? 'checked' : ''}><span>${/pix/i.test(p) ? '⚡' : /dinheiro/i.test(p) ? '💵' : '💳'} ${esc(p)}</span></label>`).join('')}</div></div>
       <div class="field full" id="cashBox" hidden><label>Precisa de troco?</label><div class="pay-opts"><label class="pay-opt"><input type="radio" name="need_change" value="0" checked><span>Não preciso</span></label><label class="pay-opt"><input type="radio" name="need_change" value="1"><span>Sim, preciso</span></label></div>
         <div id="changeBox" hidden style="margin-top:8px"><label>Troco para quanto?</label><input name="change_for" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Ex.: 100"><div id="changeCalc" class="change-calc"></div></div></div>
-      <div class="field full"><label>Observações</label><textarea name="notes" rows="2" placeholder="Ex.: troco para R$ 50"></textarea></div>
+      <div class="field full"><label>Observações</label><textarea name="notes" rows="2" placeholder="Ex.: tocar a campainha, casa dos fundos…"></textarea></div>
     </form>`;
     const upd = (e) => {
       const f = $('#checkout'), nb = nbs.find((n) => n.id == f.neighborhood_id.value), st = subtotal(), free = +S.settings.free_delivery_above || 0;
@@ -139,33 +139,51 @@
   // ---------- Sugestões de endereço enquanto digita ----------
   function setupStreetAC() {
     const f = $('#checkout'), inp = f && f.street, list = $('#acList'); if (!inp || !list) return;
-    let t = null, seq = 0, items = [];
+    let t = null, seq = 0, items = [], token = Math.random().toString(36).slice(2) + Date.now().toString(36);
     const hide = () => { list.hidden = true; list.innerHTML = ''; };
+    const render = () => {
+      if (!items.length) return hide();
+      list.innerHTML = items.map((x, i) => `<button type="button" class="ac-item" data-i="${i}"><b>📍 ${esc(x.main)}</b><small>${esc(x.secondary)}</small></button>`).join('');
+      list.hidden = false;
+    };
+    const google = async (q) => {
+      const r = await fetch('/api/public/places/autocomplete?q=' + encodeURIComponent(q) + '&s=' + token);
+      if (!r.ok) throw new Error('g'); const j = await r.json(); if (!Array.isArray(j.items)) throw new Error('g');
+      return j.items.map((x) => ({ ...x, g: true }));
+    };
+    const free = async (q) => {
+      const city = S.settings.store_city || 'São Leopoldo, RS';
+      const j = await (await fetch('https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=6&countrycodes=br&accept-language=pt-BR&q=' + encodeURIComponent(q + ', ' + city))).json();
+      const seen = new Set();
+      return (j || []).map((x) => {
+        const a = x.address || {}, st = a.road || a.pedestrian || a.residential || x.name;
+        const district = a.suburb || a.neighbourhood || a.quarter || '';
+        return { main: st + (a.house_number ? ', ' + a.house_number : ''), secondary: [district, a.city || a.town || a.village, a.state].filter(Boolean).join(' · '),
+          street: st, number: a.house_number || '', district, lat: +x.lat, lng: +x.lon };
+      }).filter((x) => x.street && !seen.has(x.main + x.secondary) && seen.add(x.main + x.secondary));
+    };
+    let useGoogle = true;
     inp.addEventListener('input', () => {
       clearTimeout(t); const q = inp.value.trim(); if (q.length < 3) return hide();
       t = setTimeout(async () => {
-        const my = ++seq, s = S.settings, city = s.store_city || 'São Leopoldo, RS';
-        const bias = s.store_lat ? `&lat=${+s.store_lat}&lon=${+s.store_lng}` : '';
-        try {
-          const r = await fetch(`https://photon.komoot.io/api/?limit=6&lang=default${bias}&q=` + encodeURIComponent(q + ', ' + city));
-          const j = await r.json(); if (my !== seq) return;
-          items = (j.features || []).filter((x) => !x.properties.countrycode || x.properties.countrycode === 'BR').map((x) => {
-            const p = x.properties;
-            return { street: p.street || p.name, number: p.housenumber || '', district: p.district || p.locality || '', city: p.city || p.county || '', lat: x.geometry.coordinates[1], lng: x.geometry.coordinates[0] };
-          }).filter((x) => x.street);
-          if (!items.length) return hide();
-          list.innerHTML = items.map((x, i) => `<button type="button" class="ac-item" data-i="${i}"><b>📍 ${esc(x.street)}${x.number ? ', ' + esc(x.number) : ''}</b><small>${esc([x.district, x.city].filter(Boolean).join(' · '))}</small></button>`).join('');
-          list.hidden = false;
-        } catch { hide(); }
-      }, 300);
+        const my = ++seq; let res = [];
+        try { if (useGoogle) res = await google(q); } catch { useGoogle = false; }
+        if (!useGoogle) { try { res = await free(q); } catch { res = []; } }
+        if (my !== seq) return; items = res; render();
+      }, 350);
     });
     list.addEventListener('mousedown', (e) => e.preventDefault());
-    list.addEventListener('click', (e) => {
-      const b = e.target.closest('.ac-item'); if (!b) return; const x = items[+b.dataset.i];
-      inp.value = x.street; if (x.number && !f.number.value) f.number.value = x.number;
+    list.addEventListener('click', async (e) => {
+      const b = e.target.closest('.ac-item'); if (!b) return; let x = items[+b.dataset.i]; hide();
+      if (x.g) {
+        try { const r = await fetch('/api/public/places/details?id=' + encodeURIComponent(x.id) + '&s=' + token); if (r.ok) x = { ...x, ...(await r.json()) }; } catch {}
+        token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      }
+      inp.value = x.street || x.main; if (x.number) f.number.value = x.number;
       const nb = x.district && S.neighborhoods.find((n) => n.name.toLowerCase() === x.district.toLowerCase());
-      if (nb && !f.neighborhood_id.value) { f.neighborhood_id.value = nb.id; f.dispatchEvent(new Event('change')); }
-      hide(); showPin(x.lat, x.lng); if (!f.number.value) f.number.focus();
+      if (nb) { f.neighborhood_id.value = nb.id; f.dispatchEvent(new Event('change')); }
+      if (x.lat != null) showPin(+x.lat, +x.lng);
+      if (!f.number.value) f.number.focus();
     });
     inp.addEventListener('blur', () => setTimeout(hide, 150));
   }

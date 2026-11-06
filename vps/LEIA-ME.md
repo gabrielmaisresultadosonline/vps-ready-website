@@ -60,3 +60,9 @@ sudo chown postgres /var/www/nosilva-drinks/backups
 ## Funcionamento
 - Pedidos ao vivo com som e mapa; Em preparação → A caminho → Entregue sozinho em 40 min (ajustável). Cancelar/excluir devolve estoque.
 - Cliente acompanha em "📦 Meu pedido" pelo telefone.
+
+## Sugestões de endereço do Google Maps (opcional)
+1. No Google Cloud (com faturamento ativo), ative **Places API (New)** e crie uma chave de API.
+2. Na VPS: `sudo nano /var/www/nosilva-drinks/app/.env` e adicione `GOOGLE_MAPS_API_KEY=SUA_CHAVE`
+3. `pm2 restart nosilva-drinks`
+Sem a chave, a loja usa sugestões de um mapa gratuito automaticamente.
