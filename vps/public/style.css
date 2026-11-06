@@ -106,6 +106,7 @@ h1,h2,h3,.display{font-family:'Bebas Neue','Oswald',Impact,sans-serif;letter-spa
 /* Checkout */
 .form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .field{display:flex;flex-direction:column;gap:6px}
+[hidden]{display:none!important}
 .field.full{grid-column:1/-1}
 .field label{font-size:12px;color:var(--silver);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .field input,.field select,.field textarea{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);outline:none}
