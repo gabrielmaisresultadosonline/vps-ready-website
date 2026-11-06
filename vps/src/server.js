@@ -218,6 +218,16 @@ app.post('/api/public/orders', wrap(async (req, res) => {
 
 // Cliente consulta o último pedido pelo telefone (mostra só número, status, itens e total)
 const trackHits = new Map();
+app.get('/api/public/customer', wrap(async (req, res) => {
+  const ip = req.ip, now = Date.now(), h = (trackHits.get(ip) || []).filter((t) => now - t < 60000);
+  if (h.length >= 15) throw bad('Muitas consultas. Aguarde um minuto.', 429);
+  h.push(now); trackHits.set(ip, h);
+  const phone = onlyDigits(req.query.phone);
+  if (phone.length < 10 || phone.length > 13) throw bad('Informe o telefone com DDD');
+  const c = (await q('SELECT name,neighborhood_id,street,number,complement,reference FROM customers WHERE right(phone,10)=right($1,10) ORDER BY last_order_at DESC NULLS LAST LIMIT 1', [phone])).rows[0];
+  res.json(c ? { found: true, ...c } : { found: false });
+}));
+
 app.get('/api/public/track', wrap(async (req, res) => {
   const ip = req.ip, now = Date.now(), h = (trackHits.get(ip) || []).filter((t) => now - t < 60000);
   if (h.length >= 15) throw bad('Muitas consultas. Aguarde um minuto.', 429);

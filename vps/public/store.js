@@ -70,12 +70,39 @@
       <button class="btn btn-primary" data-checkout ${(min && st < min) || !S.open ? 'disabled' : ''}>FINALIZAR PEDIDO →</button>`;
   }
 
+  function phoneView(err) {
+    $('#drawerTitle').textContent = 'SEU TELEFONE';
+    $('#drawerBody').innerHTML = `<form class="form" id="phoneForm" novalidate>
+      ${err ? `<div class="alert field full">${esc(err)}</div>` : ''}
+      <p class="field full muted">Digite seu WhatsApp. Se você já pediu antes, preenchemos seus dados e endereço automaticamente.</p>
+      <div class="field full"><label>Telefone / WhatsApp com DDD *</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="(51) 99999-9999" value="${esc(saved.phone || '')}"></div>
+    </form>`;
+    $('#drawerFoot').innerHTML = `<button class="btn btn-primary" data-phone-go>CONTINUAR →</button><button class="btn btn-ghost" data-back>← Voltar ao carrinho</button>`;
+    const f = $('#phoneForm'); f.onsubmit = (e) => { e.preventDefault(); lookupPhone(); }; setTimeout(() => f.phone.focus(), 50);
+  }
+  let welcome = '';
+  async function lookupPhone() {
+    const f = $('#phoneForm'), phone = f.phone.value.trim(), dg = phone.replace(/\D/g, '');
+    if (dg.length < 10) return phoneView('Informe o telefone com DDD.');
+    const b = $('[data-phone-go]'); if (b) { b.disabled = true; b.textContent = 'Buscando…'; }
+    let c = { found: false };
+    try { const r = await fetch('/api/public/customer?phone=' + encodeURIComponent(dg)); if (r.ok) c = await r.json(); } catch {}
+    const prev = (saved.phone || '').replace(/\D/g, '').slice(-10) === dg.slice(-10);
+    if (c.found) {
+      for (const k of ['name', 'neighborhood_id', 'street', 'number', 'complement', 'reference']) saved[k] = c[k] == null ? '' : String(c[k]);
+      welcome = `👋 Olá, ${(c.name || '').split(' ')[0]}! Encontramos seu cadastro. Confira os dados e o endereço.`;
+    } else {
+      if (!prev) for (const k of ['name', 'neighborhood_id', 'street', 'number', 'complement', 'reference']) saved[k] = '';
+      welcome = '🆕 Primeira vez por aqui? Preencha seu nome e endereço.';
+    }
+    saved.phone = phone; view = 'checkout'; checkoutView();
+  }
   function checkoutView(err) {
     $('#drawerTitle').textContent = 'FINALIZAR';
     const nbs = S.neighborhoods, pm = (S.settings.payment_methods || 'Pix,Dinheiro,Cartão').split(',').map((s) => s.trim()).filter(Boolean);
     const v = (k) => esc(saved[k] || '');
     $('#drawerBody').innerHTML = `<form class="form" id="checkout" novalidate>
-      ${err ? `<div class="alert field full">${esc(err)}</div>` : ''}
+      ${err ? `<div class="alert field full">${esc(err)}</div>` : welcome ? `<div class="welcome field full">${esc(welcome)}</div>` : ''}
       <div class="field full"><label>Nome completo *</label><input name="name" required autocomplete="name" value="${v('name')}"></div>
       <div class="field full"><label>Telefone / WhatsApp *</label><input name="phone" required inputmode="tel" autocomplete="tel" placeholder="(51) 99999-9999" value="${v('phone')}"></div>
       <div class="field full"><label>Bairro *</label><select name="neighborhood_id" required><option value="">Selecione…</option>
@@ -133,7 +160,7 @@
     } catch (e) { if (win) win.close(); checkoutView(e.message); }
   }
 
-  function renderDrawer() { view === 'cart' ? cartView() : checkoutView(); }
+  function renderDrawer() { view === 'cart' ? cartView() : view === 'phone' ? phoneView() : checkoutView(); }
   function openDrawer() { view = 'cart'; renderDrawer(); $('#drawer').classList.add('open'); $('#overlay').classList.add('open'); document.body.style.overflow = 'hidden'; }
   function closeDrawer() { $('#drawer').classList.remove('open'); $('#overlay').classList.remove('open'); document.body.style.overflow = ''; }
 
@@ -144,7 +171,8 @@
     else if (t.hasAttribute('data-add')) { setQty(id, 1); const c = document.querySelector(`.card[data-id="${id}"]`); c && c.classList.add('added'); toast('Adicionado ao carrinho ✓'); }
     else if (t.hasAttribute('data-inc')) setQty(id, (cart[id] || 0) + 1);
     else if (t.hasAttribute('data-dec')) setQty(id, (cart[id] || 0) - 1);
-    else if (t.hasAttribute('data-checkout')) { view = 'checkout'; renderDrawer(); }
+    else if (t.hasAttribute('data-checkout')) { view = 'phone'; renderDrawer(); }
+    else if (t.hasAttribute('data-phone-go')) lookupPhone();
     else if (t.hasAttribute('data-back')) { view = 'cart'; renderDrawer(); }
     else if (t.hasAttribute('data-send')) send(t);
     else if (t.hasAttribute('data-close')) closeDrawer();

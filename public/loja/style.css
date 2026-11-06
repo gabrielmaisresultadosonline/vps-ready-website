@@ -206,3 +206,4 @@ h1,h2,h3,.display{font-family:'Bebas Neue','Oswald',Impact,sans-serif;letter-spa
 .ac-list{max-height:min(320px,50vh)}
 .ac-item b{font-size:.95em;line-height:1.25}
 @media(max-width:560px){.ac-item{padding:12px}}
+.welcome{background:rgba(240,0,121,.12);border:1px solid rgba(240,0,121,.4);border-radius:10px;padding:10px 12px;font-size:.92em}

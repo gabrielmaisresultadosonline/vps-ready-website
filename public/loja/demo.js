@@ -127,7 +127,7 @@
       var fee = num(s.free_delivery_above) > 0 && sub >= num(s.free_delivery_above) ? 0 : num(nb.delivery_fee);
       var cust = db.customers.find(function (c) { return c.phone === phone; });
       if (!cust) { cust = { id: ++db.seq.cust, phone: phone, first_order_at: now() }; db.customers.push(cust); }
-      Object.assign(cust, { name: name, neighborhood_id: nb.id, street: body.street, number: body.number, complement: body.complement || null, last_order_at: now() });
+      Object.assign(cust, { name: name, neighborhood_id: nb.id, street: body.street, number: body.number, complement: body.complement || null, reference: body.reference || null, last_order_at: now() });
       var o = {
         id: ++db.seq.order, order_number: ++db.seq.num, customer_id: cust.id, customer_name: name, customer_phone: phone, neighborhood_name: nb.name,
         address: [body.street, body.number, body.complement].filter(Boolean).join(', '), subtotal: sub, delivery_fee: fee, total: sub + fee,
@@ -137,6 +137,12 @@
       db.orders.unshift(o);
       var txt = '*NOVO PEDIDO — NO SILVA DRINKS*\nPedido: #' + String(o.order_number).padStart(6, '0') + '\nCliente: ' + name + '\n' + items.map(function (i) { return i.quantity + 'x ' + i.name; }).join('\n') + '\nTOTAL: R$ ' + o.total.toFixed(2);
       return { order_number: o.order_number, total: o.total, whatsapp_url: 'https://wa.me/' + digits(s.whatsapp) + '?text=' + encodeURIComponent(txt) };
+    }
+    if (path === 'public/customer') {
+      var cp = digits(q.get('phone')); if (cp.length < 10) err('Informe o telefone com DDD');
+      var cu = db.customers.find(function (c) { return c.phone && c.phone.slice(-10) === cp.slice(-10); });
+      if (!cu) return { found: false };
+      return { found: true, name: cu.name, neighborhood_id: cu.neighborhood_id, street: cu.street, number: cu.number, complement: cu.complement, reference: cu.reference };
     }
     if (path === 'public/track') {
       var ph = digits(q.get('phone')); if (ph.length < 10) err('Informe o telefone com DDD');
