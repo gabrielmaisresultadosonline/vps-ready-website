@@ -27,7 +27,7 @@
     const n = Object.values(cart).reduce((a, b) => a + b, 0), b = $('#cartCount');
     b.textContent = n; b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump');
     $('#fabTotal').textContent = brl(subtotal());
-    $('#fab').style.visibility = n ? 'visible' : 'hidden';
+    $('#fab').classList.toggle('show', n > 0);
   }
 
   function renderTabs() {
