@@ -733,6 +733,11 @@
     start(j.name);
   };
   $('#logout').onclick = async () => { await fetch(API + '/auth/logout', { method: 'POST' }); showLogin(); };
-  function start(name) { $('#login').hidden = true; $('#app').hidden = false; $('#userName').textContent = name; route(); startWatch(); }
+  function start(name) { $('#login').hidden = true; $('#app').hidden = false; $('#userName').textContent = name; route(); startWatch(); showVersion(); }
+  function showVersion() {
+    fetch(API + '/public/version').then((r) => (r.ok ? r.json() : null))
+      .then((j) => { const el = $('#verTag'); if (el && j && j.version) el.textContent = 'Versão instalada: ' + j.version; })
+      .catch(() => {});
+  }
   fetch(API + '/auth/me').then((r) => (r.ok ? r.json().then((u) => start(u.name)) : showLogin())).catch(showLogin);
 })();

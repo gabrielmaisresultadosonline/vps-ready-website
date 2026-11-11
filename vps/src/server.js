@@ -590,6 +590,8 @@ app.get('/admin', (req, res, next) => (req.originalUrl.split('?')[0].endsWith('/
 app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '7d', index: false, dotfiles: 'deny' }));
 app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: 0, etag: true, index: 'index.html', redirect: false, setHeaders: (res, f) => { if (/\.(html|js|css)$/.test(f)) res.setHeader('Cache-Control', 'no-cache'); } }));
 app.get('/api/health', (req, res) => res.json({ ok: true }));
+const APP_VERSION = (() => { try { return fs.readFileSync(path.join(__dirname, '..', 'VERSION'), 'utf8').trim(); } catch { return 'desconhecida'; } })();
+app.get('/api/public/version', (req, res) => res.json({ version: APP_VERSION }));
 
 // Baixa automática: pedido "a caminho" vira "entregue" após X minutos (padrão 40)
 async function autoDeliver() {

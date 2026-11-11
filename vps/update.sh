@@ -59,6 +59,19 @@ else
 fi
 [ -d /tmp/nsd-up/vps ] || { echo "!! Não achei a pasta vps/ no GitHub. Nada foi alterado."; exit 1; }
 
+# Versões: mostra o que está instalado hoje e o que vai ser instalado.
+NEWV="$(cat /tmp/nsd-up/vps/VERSION 2>/dev/null || echo 'desconhecida')"
+OLDV="$(cat "$APP/VERSION" 2>/dev/null || echo 'desconhecida')"
+echo "==> Versão hoje instalada : $OLDV"
+echo "==> Versão que vai entrar : $NEWV"
+if [ "$NEWV" = "$OLDV" ]; then
+  echo "!! O código baixado é a MESMA versão da que já está instalada."
+  echo "!!   Isso quer dizer que o GitHub ainda não recebeu as mudanças novas."
+  echo "!!   Nada foi alterado. Se quiser mesmo continuar, rode de novo com: FORCE=1 sudo bash update.sh"
+  [ "${FORCE:-0}" = "1" ] || { rm -rf /tmp/nsd-up; exit 1; }
+  echo "==> FORCE=1 definido: continuando mesmo assim."
+fi
+
 # Troca só os arquivos do programa. Banco, fotos, logs, .env e dependências ficam.
 rsync -a --delete \
   --exclude node_modules \
