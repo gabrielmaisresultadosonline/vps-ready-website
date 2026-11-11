@@ -50,7 +50,13 @@ tar --exclude=node_modules -czf "$BASE/backups/arquivos-antes-update-$(date +%F-
   && echo "==> Backup dos arquivos do programa salvo em $BASE/backups/" || true
 
 # Baixa o código novo numa pasta provisória (fora da pasta do site).
-cd /tmp && rm -rf nsd-up && git clone -q --depth 1 "$REPO" nsd-up
+# Se passar uma pasta (ex.: ZIP enviado à mão), usa ela em vez do GitHub.
+cd /tmp && rm -rf nsd-up
+if [ -n "${1:-}" ] && [ -f "$1/src/server.js" ]; then
+  mkdir -p nsd-up && cp -r "$1" nsd-up/vps && echo "==> Usando o código da pasta: $1"
+else
+  git clone -q --depth 1 "$REPO" nsd-up
+fi
 [ -d /tmp/nsd-up/vps ] || { echo "!! Não achei a pasta vps/ no GitHub. Nada foi alterado."; exit 1; }
 
 # Troca só os arquivos do programa. Banco, fotos, logs, .env e dependências ficam.
