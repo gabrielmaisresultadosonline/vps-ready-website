@@ -12,7 +12,7 @@
 <link rel="icon" id="favicon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter+Tight:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1793928900">
+<link rel="stylesheet" href="style.css?v=1793928901">
 </head>
 <body>
 <header class="header">
@@ -46,6 +46,11 @@
       <h2>NOSSO <span>CARDÁPIO</span></h2>
       <input class="search" id="search" type="search" placeholder="Buscar produto…" aria-label="Buscar produto">
     </div>
+    <section class="hl" id="hl" hidden aria-label="Destaques do dia">
+      <div class="hl-head"><h3>🔥 DESTAQUES DE <span id="hlDay">HOJE</span></h3><div class="hl-nav"><button type="button" class="hl-btn" id="hlPrev" aria-label="Anterior">‹</button><button type="button" class="hl-btn" id="hlNext" aria-label="Próximo">›</button></div></div>
+      <div class="hl-track" id="hlTrack"></div>
+    </section>
+    <div class="promo-bar" id="promoBar" hidden></div>
     <div class="tabs" id="tabs"></div>
     <div class="grid" id="grid"></div>
   </div>
@@ -61,7 +66,8 @@
   <div class="drawer-foot" id="drawerFoot"></div>
 </aside>
 <div class="toast" id="toast"></div>
-<script src="demo.js?v=1793928900"></script>
-<script src="store.js?v=1793928900"></script>
+<script src="demo.js?v=1793928901"></script>
+<script src="promo.js?v=1793928901"></script>
+<script src="store.js?v=1793928901"></script>
 </body>
 </html>

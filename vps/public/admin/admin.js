@@ -178,7 +178,7 @@
         $('#list').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Itens</th><th>Valores</th><th>Status</th><th>Pagamento</th><th>Ações</th></tr></thead><tbody>
           ${rows.map((o) => `<tr><td><b>#${String(o.order_number).padStart(6, '0')}</b><br><span class="muted">${dt(o.created_at)}<br>${o.source === 'manual' ? 'Manual' : 'Site'}</span></td>
             <td>${esc(o.customer_name)}<br><span class="muted">${esc(o.customer_phone || '')}<br>${esc(o.neighborhood_name || '')} ${esc(o.address || '')}</span></td>
-            <td>${o.items.map((i) => `${i.quantity}× ${esc(i.name)}`).join('<br>')}</td>
+            <td>${o.items.map((i) => `${i.quantity}× ${esc(i.name)}${i.promotion ? ` <span class="pill pink" title="${esc(i.promotion)}">🎉 ${brl(i.unit_price)}</span>` : ""}`).join('<br>')}</td>
             <td>Produtos ${brl(o.subtotal)}<br>Entrega ${brl(o.delivery_fee)}<br><b>Total ${brl(o.total)}</b><br><span class="muted">Custo ${brl(o.cost)} · Lucro ${brl(o.subtotal - o.cost)}</span></td>
             <td>${pill(o.status)}</td><td><span class="pill ${o.payment_status === 'pago' ? 'ok' : ''}">${o.payment_status}</span><br><span class="muted">${esc(o.payment_method || '')}</span>${troco(o)}</td>
             <td><div class="actions">
@@ -334,6 +334,155 @@
       render();
     },
 
+    async promocoes() {
+      const PR = window.NSDPromo, D = PR.DAYS;
+      const [list, prods] = await Promise.all([api('/admin/promotions'), api('/admin/products')]);
+      const pname = (id) => (prods.find((p) => p.id == id) || {}).name || '(produto excluído)';
+      const daysTxt = (d) => (!d || !d.length ? 'Todos os dias' : d.map((x) => D[x]).join(', '));
+      const now = PR.spNow();
+      const conflicts = () => { const m = {}; list.filter((p) => p.active).forEach((p) => p.product_ids.forEach((id) => (m[id] = (m[id] || []).concat(p)))); return Object.entries(m).filter(([, a]) => a.length > 1 && a.some((x, i) => a.some((y, j) => j > i && (!x.days.length || !y.days.length || x.days.some((d) => y.days.includes(d)))))); };
+      const cf = conflicts();
+      view.innerHTML = `<div class="toolbar"><button class="btn btn-primary" id="new">+ Nova promoção</button><span class="muted">Hoje é <b>${D[now.dow]}</b>, ${now.time} (horário de São Paulo)</span></div>
+        ${cf.length ? `<div class="panel" style="border-color:#f59e0b"><b>⚠ Produto em mais de uma promoção no mesmo dia:</b> ${cf.map(([id, a]) => `${esc(pname(id))} (${a.map((x) => esc(x.name)).join(' × ')})`).join('; ')}. Vale a de <b>menor número de prioridade</b>.</div>` : ''}
+        <div class="table-wrap"><table><thead><tr><th>Promoção</th><th>Dias</th><th>Preços</th><th>Produtos participantes</th><th>Período</th><th>Status</th><th></th></tr></thead><tbody>
+        ${list.length ? list.map((p) => `<tr><td><b>${esc(p.name)}</b><br><span class="muted">prioridade ${p.priority}</span></td><td>${daysTxt(p.days)}${p.start_time || p.end_time ? `<br><span class="muted">${p.start_time || '00:00'}–${p.end_time || '23:59'}</span>` : ''}</td>
+          <td>1 un: <b>${brl(p.price1)}</b>${+p.price2 ? `<br>2 un: <b>${brl(p.price2)}</b>` : ''}</td>
+          <td>${p.product_ids.length ? p.product_ids.map((id) => esc(pname(id))).join('<br>') : '<span class="pill warn">nenhum produto</span>'}</td>
+          <td class="muted">${p.start_date || p.end_date ? `${p.start_date ? new Date(p.start_date + 'T12:00').toLocaleDateString('pt-BR') : '…'} até ${p.end_date ? new Date(p.end_date + 'T12:00').toLocaleDateString('pt-BR') : '…'}` : 'sem validade'}</td>
+          <td>${!p.active ? '<span class="pill">desativada</span>' : PR.promoActive(p, now) ? '<span class="pill ok">valendo agora</span>' : '<span class="pill pink">ativa</span>'}</td>
+          <td><button class="btn btn-ghost btn-sm" data-edit="${p.id}">Editar</button> <button class="btn btn-ghost btn-sm" data-tog="${p.id}">${p.active ? 'Desativar' : 'Ativar'}</button> <button class="btn btn-ghost btn-sm" style="color:#fca5a5;border-color:#ef4444" data-del="${p.id}">Excluir</button></td></tr>`).join('') : '<tr><td colspan="7" class="muted">Nenhuma promoção ainda.</td></tr>'}</tbody></table></div>`;
+      const body = (p, extra = {}) => ({ name: p.name, days: p.days, price1: p.price1, price2: p.price2, start_time: p.start_time, end_time: p.end_time, start_date: p.start_date, end_date: p.end_date, active: p.active, priority: p.priority, product_ids: p.product_ids, ...extra });
+      const form = (p = { days: [], product_ids: [], active: true, priority: 0 }) => {
+        modal(p.id ? 'Editar promoção' : 'Nova promoção', `<form class="form">
+          <div class="field full"><label>Nome da promoção *</label><input name="name" required value="${esc(p.name || '')}" placeholder="Ex.: TERÇA DA CAIPIRINHA"></div>
+          <div class="field full"><label>Dias da semana (nenhum marcado = todos os dias)</label><div class="chips">${D.map((d, i) => `<label class="chip"><input type="checkbox" name="days" value="${i}" ${p.days.includes(i) ? 'checked' : ''}><span>${d}</span></label>`).join('')}</div></div>
+          <div class="field"><label>Preço de 1 unidade *</label><input name="price1" type="number" step="0.01" min="0.01" required value="${p.price1 ?? ''}"></div>
+          <div class="field"><label>Preço de 2 unidades</label><input name="price2" type="number" step="0.01" min="0" value="${p.price2 ?? ''}"></div>
+          <div class="field full muted" id="calc"></div>
+          <div class="field"><label>Horário de início (opcional)</label><input name="start_time" type="time" value="${esc(p.start_time || '')}"></div>
+          <div class="field"><label>Horário de término (opcional)</label><input name="end_time" type="time" value="${esc(p.end_time || '')}"></div>
+          <div class="field"><label>Data inicial (opcional)</label><input name="start_date" type="date" value="${esc(p.start_date || '')}"></div>
+          <div class="field"><label>Data final (opcional)</label><input name="end_date" type="date" value="${esc(p.end_date || '')}"></div>
+          <div class="field"><label>Status</label><select name="active"><option value="1">✅ Ativada</option><option value="0" ${p.active ? '' : 'selected'}>⛔ Desativada</option></select></div>
+          <div class="field"><label>Prioridade (se o produto estiver em 2 promoções, vale o menor número)</label><input name="priority" type="number" value="${p.priority ?? 0}"></div>
+          <div class="field full"><label>Produtos participantes (<span id="pc">0</span> marcados)</label><input class="search" id="pq" placeholder="Buscar produto…" style="margin-bottom:8px">
+            <div class="pick">${prods.map((x) => `<label class="chk" data-n="${esc(x.name.toLowerCase())}"><input type="checkbox" name="product_ids" value="${x.id}" ${p.product_ids.includes(x.id) ? 'checked' : ''}> <span>${esc(x.name)} <span class="muted">· ${brl(+x.promo_price || x.sale_price)}</span></span></label>`).join('')}</div></div>
+          <button class="btn btn-primary field full" type="submit">SALVAR PROMOÇÃO</button></form>`,
+          async (_, f) => {
+            const all = (n) => [...f.querySelectorAll(`[name=${n}]:checked`)].map((x) => +x.value), v = (n) => f[n].value;
+            await api('/admin/promotions' + (p.id ? '/' + p.id : ''), { method: p.id ? 'PUT' : 'POST', body: { name: v('name'), days: all('days'), product_ids: all('product_ids'), price1: v('price1'), price2: v('price2'), start_time: v('start_time'), end_time: v('end_time'), start_date: v('start_date'), end_date: v('end_date'), active: v('active') === '1', priority: v('priority') } });
+            toast('Promoção salva ✓'); pages.promocoes();
+          });
+        const f = $('#modalBody form'), upd = () => {
+          const pr = { price1: +f.price1.value, price2: +f.price2.value };
+          $('#calc').innerHTML = pr.price1 > 0 ? '🧮 Cálculo automático: ' + [1, 2, 3, 4, 5, 6].map((n) => `${n} un = <b>${brl(PR.groupTotal(pr, n))}</b>`).join(' · ') : 'Informe o preço de 1 unidade para ver o cálculo.';
+          $('#pc').textContent = f.querySelectorAll('[name=product_ids]:checked').length;
+        };
+        f.addEventListener('input', upd); f.addEventListener('change', upd); upd();
+        $('#pq').oninput = (e) => { const t = e.target.value.toLowerCase(); f.querySelectorAll('.pick .chk').forEach((l) => (l.hidden = !l.dataset.n.includes(t))); };
+      };
+      $('#new').onclick = () => form();
+      view.onclick = async (e) => {
+        const t = e.target.closest('[data-edit],[data-tog],[data-del]'); if (!t) return;
+        const p = list.find((x) => x.id == (t.dataset.edit || t.dataset.tog || t.dataset.del));
+        if (t.dataset.edit) return form(p);
+        if (t.dataset.tog) { await api('/admin/promotions/' + p.id, { method: 'PUT', body: body(p, { active: !p.active }) }); toast(p.active ? 'Promoção desativada' : 'Promoção ativada ✓'); return pages.promocoes(); }
+        if (confirm(`Excluir a promoção "${p.name}"? Os produtos continuam no cardápio com o preço normal. Pedidos antigos não mudam.`)) { await api('/admin/promotions/' + p.id, { method: 'DELETE' }); toast('Promoção excluída ✓'); pages.promocoes(); }
+      };
+    },
+
+    async destaques() {
+      const PR = window.NSDPromo, D = PR.DAYS;
+      const [list, prods] = await Promise.all([api('/admin/highlights'), api('/admin/products')]);
+      const now = PR.spNow(), daysTxt = (d) => (!d || !d.length ? '<span class="pill pink">geral</span>' : d.map((x) => D[x]).join(', '));
+      const preview = (dow) => { const n = { ...now, dow }; return PR.dayHighlights(list, n); };
+      const strip = (arr) => arr.length ? `<div class="hl-prev">${arr.map((h) => `<div><img src="${esc(src(h.image || h.product_image))}" alt="" onerror="this.style.visibility='hidden'"><small>${esc(h.product_name)}</small></div>`).join('')}</div>` : '<p class="muted">Nenhum destaque — a faixa fica escondida (os produtos continuam no cardápio).</p>';
+      view.innerHTML = `<div class="toolbar"><button class="btn btn-primary" id="new">+ Adicionar destaque</button><div class="field"><label>Prévia do dia</label><select id="pv">${D.map((d, i) => `<option value="${i}" ${i === now.dow ? 'selected' : ''}>${d}${i === now.dow ? ' (hoje)' : ''}</option>`).join('')}</select></div></div>
+        <div class="panel"><h3>👀 Faixa que aparece no topo do cardápio</h3><div id="pvBox">${strip(preview(now.dow))}</div>
+        <p class="muted">Os destaques são só uma faixa extra no topo. <b>Todos os produtos ativos continuam aparecendo normalmente no cardápio.</b> Se o dia não tiver destaque próprio, aparecem os <b>gerais</b> (sem dia marcado).</p></div>
+        <div class="table-wrap"><table><thead><tr><th></th><th>Produto</th><th>Dias</th><th>Ordem</th><th>Validade</th><th>Status</th><th></th></tr></thead><tbody>
+        ${list.length ? list.map((h) => `<tr><td><img src="${esc(src(h.image || h.product_image))}" style="width:48px;height:48px;object-fit:cover;border-radius:8px" alt="" onerror="this.style.visibility='hidden'"></td><td><b>${esc(h.product_name)}</b>${h.image ? '<br><span class="muted">imagem personalizada</span>' : ''}</td><td>${daysTxt(h.days)}</td><td>${h.sort_order}</td>
+          <td class="muted">${h.start_date || h.end_date ? `${h.start_date || '…'} até ${h.end_date || '…'}` : '—'}</td><td>${h.active ? '<span class="pill ok">ativo</span>' : '<span class="pill">desativado</span>'}</td>
+          <td><button class="btn btn-ghost btn-sm" data-edit="${h.id}">Editar</button> <button class="btn btn-ghost btn-sm" data-tog="${h.id}">${h.active ? 'Desativar' : 'Ativar'}</button> <button class="btn btn-ghost btn-sm" style="color:#fca5a5;border-color:#ef4444" data-del="${h.id}">Remover</button></td></tr>`).join('') : '<tr><td colspan="7" class="muted">Nenhum destaque ainda.</td></tr>'}</tbody></table></div>`;
+      $('#pv').onchange = (e) => ($('#pvBox').innerHTML = strip(preview(+e.target.value)));
+      const body = (h, extra = {}) => ({ product_id: h.product_id, days: h.days, sort_order: h.sort_order, active: h.active, image: h.image, start_date: h.start_date, end_date: h.end_date, ...extra });
+      const form = (h = { days: [], active: true, sort_order: list.length }) => {
+        modal(h.id ? 'Editar destaque' : 'Novo destaque', `<form class="form">
+          <div class="field full"><label>Produto *</label><select name="product_id" required><option value="">Selecione…</option>${prods.map((p) => `<option value="${p.id}" ${p.id == h.product_id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>
+          <div class="field full"><label>Dias da semana (nenhum marcado = destaque geral, aparece quando o dia não tem destaque próprio)</label><div class="chips">${D.map((d, i) => `<label class="chip"><input type="checkbox" name="days" value="${i}" ${h.days.includes(i) ? 'checked' : ''}><span>${d}</span></label>`).join('')}</div></div>
+          <div class="field"><label>Ordem de exibição</label><input name="sort_order" type="number" value="${h.sort_order ?? 0}"></div>
+          <div class="field"><label>Status</label><select name="active"><option value="1">✅ Ativo</option><option value="0" ${h.active ? '' : 'selected'}>⛔ Desativado</option></select></div>
+          <div class="field"><label>Válido de (opcional)</label><input name="start_date" type="date" value="${esc(h.start_date || '')}"></div>
+          <div class="field"><label>Válido até (opcional)</label><input name="end_date" type="date" value="${esc(h.end_date || '')}"></div>
+          ${imgField('image', h.image, 'Imagem personalizada (opcional — sem imagem usa a foto do produto)')}
+          <button class="btn btn-primary field full" type="submit">SALVAR DESTAQUE</button></form>`,
+          async (d, f) => { await api('/admin/highlights' + (h.id ? '/' + h.id : ''), { method: h.id ? 'PUT' : 'POST', body: { ...d, active: d.active === '1', days: [...f.querySelectorAll('[name=days]:checked')].map((x) => +x.value) } }); toast('Destaque salvo ✓'); pages.destaques(); });
+        bindImgFields($('#modalBody'));
+      };
+      $('#new').onclick = () => form();
+      view.onclick = async (e) => {
+        const t = e.target.closest('[data-edit],[data-tog],[data-del]'); if (!t) return;
+        const h = list.find((x) => x.id == (t.dataset.edit || t.dataset.tog || t.dataset.del));
+        if (t.dataset.edit) return form(h);
+        if (t.dataset.tog) { await api('/admin/highlights/' + h.id, { method: 'PUT', body: body(h, { active: !h.active }) }); return pages.destaques(); }
+        if (confirm(`Tirar "${h.product_name}" dos destaques? O produto continua no cardápio.`)) { await api('/admin/highlights/' + h.id, { method: 'DELETE' }); toast('Removido dos destaques ✓'); pages.destaques(); }
+      };
+    },
+
+    async qrcode() {
+      const s = await api('/admin/settings');
+      const def = new URL('../', location.href).href;
+      let url = s.qr_url || def;
+      const risky = (u) => /localhost|127\.0\.0\.1|\/\/(\d{1,3}\.){3}\d{1,3}|lovable(project)?\.(app|dev)|\.local\b/i.test(u);
+      const make = (u) => { const qr = window.qrcode(0, 'H'); qr.addData(u); qr.make(); return qr; };
+      const svgOf = (u, scale = 10, margin = 4) => {
+        const qr = make(u), n = qr.getModuleCount(), size = n + margin * 2; let d = '';
+        for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) d += `M${c + margin},${r + margin}h1v1h-1z`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size * scale}" height="${size * scale}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+      };
+      const printHtml = (u) => `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>QR Code do cardápio</title><style>
+        @page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif}
+        .sheet{max-width:170mm;margin:0 auto;text-align:center;padding:10mm 6mm;border:2px solid #111;border-radius:6mm}
+        h1{font-size:30pt;margin:0 0 4mm;letter-spacing:.02em}.brand{font-size:14pt;font-weight:700;margin-bottom:8mm;color:#444}
+        .qr{width:110mm;max-width:100%;margin:0 auto}.qr svg{width:100%;height:auto;display:block}
+        p{font-size:15pt;line-height:1.4;margin:8mm 0 3mm}.url{font-size:11pt;color:#555;word-break:break-all}</style></head><body>
+        <div class="sheet"><h1>ACESSE NOSSO CARDÁPIO</h1><div class="brand">${esc(s.store_name || 'No Silva Drinks')}</div><div class="qr">${svgOf(u)}</div>
+        <p>Aponte a câmera do seu celular e confira nosso cardápio, promoções e novidades!</p><div class="url">${esc(u)}</div></div></body></html>`;
+      const render = () => {
+        $('#qrBox').innerHTML = svgOf(url, 6);
+        $('#qrPrev').srcdoc = printHtml(url);
+        $('#qrWarn').innerHTML = risky(url) ? `<div class="alert">⚠ Este endereço parece ser de teste/local. Coloque o endereço público do site (ex.: https://nosilvadrinks.com.br/) antes de imprimir.</div>` : '';
+      };
+      view.innerHTML = `<div class="cols">
+        <div class="panel"><h3>🔳 QR Code do cardápio</h3>
+          <p class="muted">O QR Code leva direto para o cardápio público. Ele é sempre o mesmo enquanto o endereço do site não mudar — pode imprimir sem medo de atualizações do site.</p>
+          <div class="field"><label>Endereço do cardápio (destino do QR Code)</label><input id="qrUrl" type="url" value="${esc(url)}"></div>
+          <div id="qrWarn"></div>
+          <div class="toolbar" style="margin-top:10px"><button class="btn btn-primary" id="qrSave">${s.qr_url ? 'GERAR NOVAMENTE' : 'GERAR QR CODE'}</button><button class="btn btn-ghost" id="qrCopy">📋 Copiar link</button><button class="btn btn-ghost" id="qrDef">Usar endereço deste site</button></div>
+          <div class="qr-box" id="qrBox"></div>
+          <div class="toolbar"><button class="btn btn-ghost" id="qrPng">⬇ Baixar PNG</button><button class="btn btn-ghost" id="qrSvg">⬇ Baixar SVG</button><button class="btn btn-primary" id="qrPrint">🖨 Imprimir</button></div>
+          ${s.qr_url ? '<p class="muted">✓ QR Code salvo. Ele é reaproveitado sempre que você abrir esta tela.</p>' : ''}</div>
+        <div class="panel"><h3>Prévia da impressão (A4)</h3><iframe id="qrPrev" class="qr-prev" title="Prévia da impressão"></iframe></div></div>`;
+      render();
+      $('#qrUrl').oninput = (e) => { url = e.target.value.trim() || def; render(); };
+      $('#qrDef').onclick = () => { url = def; $('#qrUrl').value = def; render(); };
+      $('#qrSave').onclick = async () => {
+        try { new URL(url); } catch { return toast('Endereço inválido'); }
+        if (risky(url) && !confirm('Esse endereço parece ser de teste/local e pode não abrir no celular do cliente. Salvar mesmo assim?')) return;
+        await api('/admin/settings', { method: 'PUT', body: { qr_url: url } }); toast('QR Code gerado e salvo ✓'); pages.qrcode();
+      };
+      $('#qrCopy').onclick = async () => { try { await navigator.clipboard.writeText(url); toast('Link copiado ✓'); } catch { prompt('Copie o link:', url); } };
+      const dl = (href, name) => { const a = document.createElement('a'); a.href = href; a.download = name; document.body.appendChild(a); a.click(); a.remove(); };
+      $('#qrSvg').onclick = () => { const u = URL.createObjectURL(new Blob([svgOf(url, 10)], { type: 'image/svg+xml' })); dl(u, 'qrcode-cardapio.svg'); setTimeout(() => URL.revokeObjectURL(u), 2000); };
+      $('#qrPng').onclick = () => {
+        const qr = make(url), n = qr.getModuleCount(), m = 4, sc = Math.ceil(1200 / (n + m * 2)), cv = document.createElement('canvas'), x = cv.getContext('2d');
+        cv.width = cv.height = (n + m * 2) * sc; x.fillStyle = '#fff'; x.fillRect(0, 0, cv.width, cv.height); x.fillStyle = '#000';
+        for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) x.fillRect((c + m) * sc, (r + m) * sc, sc, sc);
+        dl(cv.toDataURL('image/png'), 'qrcode-cardapio.png');
+      };
+      $('#qrPrint').onclick = () => { const w = window.open('', '_blank'); if (!w) return toast('Permita pop-ups para imprimir'); w.document.write(printHtml(url)); w.document.close(); w.focus(); setTimeout(() => w.print(), 300); };
+    },
+
     async categorias() {
       const cats = await api('/admin/categories');
       view.innerHTML = `<div class="toolbar"><button class="btn btn-primary" id="new">+ Nova categoria</button></div><div class="table-wrap"><table><thead><tr><th>Nome</th><th>Ordem</th><th>Status</th><th></th></tr></thead><tbody>${cats.map((c) => `<tr><td>${esc(c.name)}</td><td>${c.sort_order}</td><td>${c.active ? '<span class="pill ok">ativa</span>' : '<span class="pill">inativa</span>'}</td><td><button class="btn btn-ghost btn-sm" data-edit="${c.id}">Editar</button></td></tr>`).join('')}</tbody></table></div>`;
@@ -398,7 +547,7 @@
       const sec = (icon, title, href, body) => `<details class="tut" ${href === 'dashboard' ? 'open' : ''}><summary><span>${icon}</span>${title}</summary><div class="tut-body">${body}${href ? `<a class="btn btn-ghost btn-sm" href="#${href}">Abrir ${title} →</a>` : ''}</div></details>`;
       view.innerHTML = `<div class="panel tut-intro"><h3>📘 Como usar o painel</h3>
         <p>Aqui está tudo que você pode fazer no painel da No Silva Drinks. Toque em cada item para abrir a explicação. No celular, abra o menu pelo botão ☰ no topo.</p>
-        <p class="muted"><b>Primeiros passos sugeridos:</b> 1) Configurações (WhatsApp, endereço, horário) → 2) Zerar os dados de exemplo → 3) Categorias → 4) Produtos → 5) Estoque (entrada de mercadoria) → 6) Bairros e taxas → 7) Deixe “Pedidos ao vivo” aberto.</p></div>
+        <p class="muted"><b>Primeiros passos sugeridos:</b> 1) Configurações (WhatsApp, endereço, horário) → 2) Zerar os dados de exemplo → 3) Categorias → 4) Produtos → 5) Estoque (entrada de mercadoria) → 6) Bairros e taxas → 7) Promoções e destaques do dia → 8) QR Code para as mesas → 9) Deixe “Pedidos ao vivo” aberto.</p></div>
       <div class="tut-list">
       ${sec('📊', 'Dashboard', 'dashboard', `<p>Resumo do negócio no período escolhido (hoje, 7 dias, 30 dias, mês, etc.).</p><ul>
         <li><b>Faturamento bruto</b>: total vendido (produtos + entregas).</li><li><b>Custo da mercadoria (CMV)</b> e <b>Lucro bruto</b>: quanto custou o que foi vendido e quanto sobrou.</li>
@@ -423,6 +572,29 @@
       ${sec('🍾', 'Produtos', 'produtos', `<ul><li>Cadastre nome, descrição, foto (envio ou link), categoria, unidade, preço de venda, <b>preço promocional</b>, custo, e <b>estoque inicial</b>.</li>
         <li>Status: <b>ativo</b> (aparece na loja), <b>indisponível</b> (aparece como esgotado) ou <b>rascunho</b> (escondido).</li>
         <li>Marque <b>destaque</b> para aparecer primeiro. Quando o estoque chega a 0, aparece “ESGOTADO”. O botão <b>Excluir</b> tira o produto da loja e do painel, mas o histórico de vendas e estoque continua guardado; para só esconder, use o status <b>rascunho</b>.</li></ul>`)}
+      ${sec('🎉', 'Promoções e descontos', 'promocoes', `<p>Serve para fazer promoções por <b>dia da semana</b> (ex.: “Terça da Caipirinha”, “Quarta do Capeta!”) sem mexer no preço normal do produto.</p><ol>
+        <li>Clique em <b>+ Nova promoção</b> e dê um nome.</li>
+        <li>Marque os <b>dias</b> (nenhum marcado = vale todos os dias).</li>
+        <li>Coloque o <b>preço de 1 unidade</b> e o <b>preço de 2 unidades</b>. O sistema mostra o cálculo: a cada 2 unidades cobra o preço de 2, e 1 que sobrar cobra o preço de 1. Ex.: 25 / 40 → 3 un = R$ 65, 4 un = R$ 80.</li>
+        <li>Marque os <b>produtos participantes</b> (use a busca). O cliente pode misturar sabores da mesma promoção: 1 caipirinha de limão + 1 cremosa = R$ 40.</li>
+        <li>Se quiser, limite por <b>horário</b> (ex.: 18:00 às 23:59) e por <b>data inicial/final</b>.</li></ol><ul>
+        <li>No dia certo, a loja mostra a faixa amarela da promoção e o preço promocional nos produtos. Nos outros dias volta sozinho ao preço normal.</li>
+        <li>Produtos de promoções diferentes <b>não se misturam</b> no cálculo. Se um produto estiver em 2 promoções no mesmo dia, vale a de <b>menor número de prioridade</b> (o painel avisa).</li>
+        <li>O preço é sempre conferido pelo servidor na hora do pedido, no horário de São Paulo — o cliente não consegue alterar.</li>
+        <li><b>Desativar</b> pausa a promoção; <b>Excluir</b> apaga. Pedidos antigos nunca mudam.</li></ul>`)}
+      ${sec('🔥', 'Produtos em destaque', 'destaques', `<p>Uma faixa que passa sozinha (carrossel) no topo do cardápio, para chamar atenção. <b>Ela não esconde nenhum produto</b>: todo o cardápio continua aparecendo embaixo.</p><ol>
+        <li>Clique em <b>+ Adicionar destaque</b> e escolha o produto.</li>
+        <li>Marque os <b>dias</b> em que ele aparece. Sem dia marcado ele é um destaque <b>geral</b>: aparece nos dias que não têm destaque próprio.</li>
+        <li>Defina a <b>ordem</b>, ative/desative e, se quiser, a validade.</li>
+        <li>Pode enviar uma <b>imagem personalizada</b>; sem ela usa a foto do produto.</li></ol><ul>
+        <li>Use “Prévia do dia” para ver como fica a faixa em cada dia da semana.</li>
+        <li>O cliente pode arrastar a faixa ou usar as setas ‹ ›. Ao tocar num destaque, a loja leva até o produto no cardápio.</li>
+        <li>Se nenhum destaque valer naquele dia, a faixa some sozinha.</li></ul>`)}
+      ${sec('🔳', 'QR Code do cardápio', 'qrcode', `<p>Gera o QR Code oficial do seu site para mesas, balcão, embalagens e cartazes. O cliente aponta a câmera e abre o cardápio, já com as promoções e destaques do dia, sem login.</p><ol>
+        <li>Confira o <b>endereço</b> (deve ser o do seu domínio, ex.: https://nosilvadrinks.com.br/). Se aparecer aviso de endereço de teste, corrija.</li>
+        <li>Clique em <b>Gerar QR Code</b>. Ele fica salvo e é o mesmo toda vez — não muda com atualizações do site.</li>
+        <li><b>Baixar PNG</b> (imagem para WhatsApp/redes/gráfica), <b>Baixar SVG</b> (qualidade máxima para gráfica) ou <b>Imprimir</b> (folha A4 pronta: “ACESSE NOSSO CARDÁPIO”, só o QR Code e o texto, sem botões do painel).</li>
+        <li><b>Copiar link</b> copia o endereço do cardápio.</li></ol><p class="muted">Dica: teste com o celular antes de imprimir muitas cópias.</p>`)}
       ${sec('🗂️', 'Categorias', 'categorias', `<p>Crie, renomeie, ordene e desative as abas da loja (ex.: Alcoólicos, Não alcoólicos, Itens variados).</p>`)}
       ${sec('📍', 'Bairros e taxas', 'bairros', `<p>Cadastre cada bairro atendido com a <b>taxa de entrega</b> e o tempo estimado. O cliente escolhe o bairro no pedido e a taxa entra no total. Desative bairros que não atende mais.</p>`)}
       ${sec('💰', 'Financeiro', 'financeiro', `<ul><li>Todas as entradas e saídas: vendas pagas e compras de estoque entram sozinhas (“auto”).</li>
@@ -432,7 +604,7 @@
         <li><b>Endereço da loja</b>: usado nos dados da loja. <b>Minutos para baixa automática</b> (padrão 40).</li>
         <li><b>Horário</b> de abertura/fechamento ou forçar aberto/fechado. Mostrar ou esconder esgotados.</li><li>Banner, logo e favicon. Trocar sua senha.</li>
         <li><b>Zerar dados</b>: apaga estoque, pedidos, financeiro e/ou produtos para começar do zero. Pede a sua senha e uma confirmação.</li></ul>`)}
-      ${sec('🛒', 'Como o cliente compra', '', `<ol><li>Na loja, escolhe os produtos e toca em “Finalizar pedido”.</li><li>Preenche nome, WhatsApp, bairro, endereço e forma de pagamento (e troco, se for dinheiro).</li>
+      ${sec('🛒', 'Como o cliente compra', '', `<ol><li>Na loja (ou pelo QR Code), vê os destaques do dia no topo, escolhe os produtos — os preços de promoção do dia já aparecem — e toca em “Finalizar pedido”.</li><li>Preenche nome, WhatsApp, bairro, endereço e forma de pagamento (e troco, se for dinheiro).</li>
         <li>O pedido é salvo no painel e abre o WhatsApp da loja com a mensagem pronta.</li><li>Em “Meu pedido”, o cliente digita o telefone e acompanha: Recebido → Em preparação → A caminho → Entregue.</li></ol>`)}
       </div>`;
     },
@@ -533,7 +705,7 @@
   }
 
   // ---------- Navegação ----------
-  const TITLES = { dashboard: 'Dashboard', aovivo: 'Pedidos ao vivo', pedidos: 'Pedidos / Vendas', venda: 'Venda manual', baixa: 'Baixa rápida', estoque: 'Estoque', produtos: 'Produtos', categorias: 'Categorias', bairros: 'Bairros e taxas', financeiro: 'Financeiro', clientes: 'Clientes', configuracoes: 'Configurações', tutorial: 'Tutorial' };
+  const TITLES = { dashboard: 'Dashboard', aovivo: 'Pedidos ao vivo', pedidos: 'Pedidos / Vendas', venda: 'Venda manual', baixa: 'Baixa rápida', estoque: 'Estoque', produtos: 'Produtos', promocoes: 'Promoções e descontos', destaques: 'Produtos em destaque', qrcode: 'QR Code do cardápio', categorias: 'Categorias', bairros: 'Bairros e taxas', financeiro: 'Financeiro', clientes: 'Clientes', configuracoes: 'Configurações', tutorial: 'Tutorial' };
   async function route() {
     const p = (location.hash.slice(1) || 'dashboard').split('?')[0], page = pages[p] ? p : 'dashboard';
     charts.forEach((c) => c.destroy()); charts = []; view.onclick = null; liveRefresh = null;

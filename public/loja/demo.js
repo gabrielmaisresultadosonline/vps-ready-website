@@ -52,7 +52,28 @@
     };
   }
   var db;
-  function load() { try { db = JSON.parse(localStorage.getItem(KEY)) || seed(); } catch (e) { db = seed(); } }
+  function load() { try { db = JSON.parse(localStorage.getItem(KEY)) || seed(); } catch (e) { db = seed(); } migrate(); }
+  // Promoções e destaques de exemplo (só pré-visualização)
+  function migrate() {
+    if (db.promotions) return;
+    var add = function (name, img) {
+      var ex = db.products.find(function (p) { return p.name.toLowerCase() === name.toLowerCase(); }); if (ex) return ex.id;
+      var p = Object.assign(P(++db.seq.prod, 1, name, 'un', 30, null, 10, 30, false), { image: img || '' }); db.products.push(p); return p.id;
+    };
+    var c1 = (db.products.find(function (p) { return /caipirinha de lim/i.test(p.name); }) || {}).id || add('Caipirinha de Limão', 'img/produtos/11.jpg');
+    var c2 = add('Caipirinha Cremosa de Limão', 'img/produtos/11.jpg');
+    var w = ['Morango dos Deuses', 'Maracujá Supremo', 'Abacaxi Divino', 'Chocolate Trufado'].map(function (n) { return add(n); });
+    db.seq.promo = 2; db.seq.hl = 0;
+    db.promotions = [
+      { id: 1, name: 'TERÇA DA CAIPIRINHA DE LIMÃO', days: [2], price1: 25, price2: 40, start_time: null, end_time: null, start_date: null, end_date: null, active: true, priority: 0, product_ids: [c1, c2] },
+      { id: 2, name: 'QUARTA DO CAPETA!', days: [3], price1: 25, price2: 40, start_time: null, end_time: null, start_date: null, end_date: null, active: true, priority: 0, product_ids: w },
+    ];
+    db.highlights = [];
+    [[c1, 2], [c2, 2]].concat(w.map(function (id) { return [id, 3]; })).concat([[1, null], [3, null]]).forEach(function (x, i) {
+      db.highlights.push({ id: ++db.seq.hl, product_id: x[0], days: x[1] === null ? [] : [x[1]], sort_order: i, active: true, image: null, start_date: null, end_date: null });
+    });
+  }
+  var hlRows = function () { return db.highlights.map(function (h) { var p = byId(db.products, h.product_id); return p && !p.deleted ? Object.assign({}, h, { product_name: p.name, product_image: p.image }) : null; }).filter(Boolean); };
   function save() { localStorage.setItem(KEY, JSON.stringify(db)); }
   function err(m, s) { var e = new Error(m); e.status = s || 400; throw e; }
   var byId = function (arr, id) { return arr.find(function (x) { return String(x.id) === String(id); }); };
@@ -111,6 +132,8 @@
         settings: s, open: isOpen(), categories: db.categories.filter(function (c) { return c.active; }),
         products: db.products.filter(function (p) { return p.status !== 'rascunho'; }).map(function (p) { return Object.assign({}, p, { available: p.status === 'ativo' && p.stock_quantity > 0 }); }),
         neighborhoods: db.neighborhoods.filter(function (n) { return n.active; }),
+        now: window.NSDPromo.spNow(), promotions: db.promotions.filter(function (p) { return p.active; }),
+        highlights: window.NSDPromo.dayHighlights(hlRows(), window.NSDPromo.spNow()).map(function (h) { return { id: h.id, product_id: h.product_id, name: h.product_name, image: h.image || h.product_image }; }),
       };
     }
     if (path === 'public/orders') {
@@ -119,11 +142,13 @@
       if (!body.street || !body.number) err('Informe rua e número'); if (!body.items || !body.items.length) err('Carrinho vazio');
       if (!isOpen()) err('A loja está fechada no momento');
       var nb = byId(db.neighborhoods, body.neighborhood_id); if (!nb) err('Bairro indisponível para entrega');
-      var sub = 0, items = body.items.map(function (it) {
+      var raw = body.items.map(function (it) {
         var p = byId(db.products, it.product_id), qty = Math.floor(num(it.quantity));
         if (!p || p.status !== 'ativo') err('Produto indisponível'); if (qty > p.stock_quantity) err('Estoque insuficiente de ' + p.name + ' (disponível: ' + p.stock_quantity + ')');
-        sub += price(p) * qty; return { product_id: p.id, name: p.name, quantity: qty, unit_price: price(p), unit_cost: num(p.current_cost) };
+        return { product_id: p.id, name: p.name, quantity: qty, price: price(p) };
       });
+      var pc = window.NSDPromo.priceCart(raw, db.promotions), sub = pc.subtotal;
+      var items = pc.items.map(function (x) { var p = byId(db.products, x.product_id); return { product_id: x.product_id, name: x.name, quantity: x.quantity, unit_price: x.unit_price, unit_cost: num(p.current_cost), promotion: x.promotion }; });
       var fee = num(s.free_delivery_above) > 0 && sub >= num(s.free_delivery_above) ? 0 : num(nb.delivery_fee);
       var cust = db.customers.find(function (c) { return c.phone === phone; });
       if (!cust) { cust = { id: ++db.seq.cust, phone: phone, first_order_at: now() }; db.customers.push(cust); }
@@ -164,8 +189,24 @@
       if (has('financeiro')) db.finance = [];
       if (has('pedidos')) { db.finance = db.finance.filter(function (f) { return !f.order_id; }); db.orders = []; db.customers = []; db.seq.num = 0; }
       if (has('estoque')) { db.finance = db.finance.filter(function (f) { return !f.stock_movement_id; }); db.movements = []; db.products.forEach(function (p) { p.stock_quantity = 0; }); }
-      if (has('produtos')) db.products = [];
+      if (has('produtos')) { db.products = []; db.highlights = []; db.promotions.forEach(function (p) { p.product_ids = []; }); }
       return { ok: true };
+    }
+    if ((m = path.match(/^promotions(?:\/(\d+))?$/))) {
+      if (method === 'GET') return db.promotions;
+      if (method === 'DELETE') { db.promotions = db.promotions.filter(function (x) { return String(x.id) !== m[1]; }); return { ok: true }; }
+      if (!String(body.name || '').trim()) err('Informe o nome da promoção'); if (!(num(body.price1) > 0)) err('Informe o preço de 1 unidade');
+      var pf = { name: String(body.name).trim(), days: (body.days || []).map(Number), price1: num(body.price1), price2: body.price2 === '' || body.price2 == null ? null : num(body.price2), start_time: body.start_time || null, end_time: body.end_time || null, start_date: body.start_date || null, end_date: body.end_date || null, active: body.active !== false, priority: num(body.priority), product_ids: (body.product_ids || []).map(Number) };
+      if (m[1]) return Object.assign(byId(db.promotions, m[1]), pf);
+      var npr = Object.assign({ id: ++db.seq.promo }, pf); db.promotions.push(npr); return npr;
+    }
+    if ((m = path.match(/^highlights(?:\/(\d+))?$/))) {
+      if (method === 'GET') return hlRows().sort(function (a, b) { return a.sort_order - b.sort_order || a.id - b.id; });
+      if (method === 'DELETE') { db.highlights = db.highlights.filter(function (x) { return String(x.id) !== m[1]; }); return { ok: true }; }
+      if (!byId(db.products, body.product_id)) err('Escolha um produto');
+      var hf = { product_id: num(body.product_id), days: (body.days || []).map(Number), sort_order: num(body.sort_order), active: body.active !== false, image: body.image || null, start_date: body.start_date || null, end_date: body.end_date || null };
+      if (m[1]) return Object.assign(byId(db.highlights, m[1]), hf);
+      var nh = Object.assign({ id: ++db.seq.hl }, hf); db.highlights.push(nh); return nh;
     }
     if (path === 'settings') { if (method === 'PUT') Object.assign(s, body); return s; }
     if ((m = path.match(/^categories(?:\/(\d+))?$/))) {

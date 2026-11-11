@@ -12,7 +12,11 @@
   const priceOf = (p) => (p.promo_price && +p.promo_price > 0 ? +p.promo_price : +p.sale_price);
   const prod = (id) => S.products.find((p) => p.id == id);
   const items = () => Object.entries(cart).map(([id, q]) => ({ p: prod(id), q })).filter((x) => x.p && x.p.available);
-  const subtotal = () => items().reduce((a, x) => a + priceOf(x.p) * x.q, 0);
+  const PR = window.NSDPromo;
+  const promoNow = () => (PR ? PR.promoMap(S.promotions || [], PR.spNow()) : {});
+  const priced = () => (PR ? PR.priceCart(items().map((x) => ({ product_id: x.p.id, quantity: x.q, price: priceOf(x.p), name: x.p.name })), S.promotions || [], PR.spNow()) : { items: items().map((x) => ({ product_id: x.p.id, quantity: x.q, unit_price: priceOf(x.p) })), subtotal: items().reduce((a, x) => a + priceOf(x.p) * x.q, 0), discount: 0 });
+  const subtotal = () => priced().subtotal;
+  const promoTxt = (pr) => `1 por ${brl(pr.price1)}${+pr.price2 ? ` · 2 por ${brl(pr.price2)}` : ''}`;
   const toast = (t) => { const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 1600); };
 
   function setQty(id, q) {
@@ -21,6 +25,35 @@
     if (q === 0) delete cart[id]; else cart[id] = q;
     if (q === p.stock_quantity && q > 0) toast('Quantidade máxima em estoque');
     save(); renderBadge(); renderGrid(); if ($('#drawer').classList.contains('open')) renderDrawer();
+  }
+
+  // ---------- Destaques do dia (faixa no topo; não esconde nenhum produto) ----------
+  let hlTimer = null;
+  function renderHighlights() {
+    const box = $('#hl'); if (!box) return;
+    const pm = promoNow(), list = (S.highlights || []).map((h) => ({ h, p: prod(h.product_id) })).filter((x) => x.p);
+    if (!list.length) { box.hidden = true; clearInterval(hlTimer); return; }
+    box.hidden = false;
+    if (PR && S.now) $('#hlDay').textContent = PR.DAYS[PR.spNow().dow].toUpperCase();
+    $('#hlTrack').innerHTML = list.map(({ h, p }) => { const dp = pm[p.id]; return `<button type="button" class="hl-item" data-goto="${p.id}">
+      <span class="hl-img">${h.image ? `<img src="${esc(img(h.image))}" alt="${esc(p.name)}" loading="lazy">` : `<span class="ph">${esc(p.name[0])}</span>`}</span>
+      <span class="hl-name">${esc(p.name)}</span>
+      <span class="hl-tag ${dp ? "is-promo" : ""}">${dp ? `1 por ${brl(dp.price1)}${+dp.price2 ? `<br>2 por ${brl(dp.price2)}` : ""}` : !p.available ? 'ESGOTADO' : brl(priceOf(p))}</span></button>`; }).join('');
+    const tr = $('#hlTrack'), step = () => Math.max(140, tr.clientWidth * 0.8);
+    const move = (d) => { const end = tr.scrollLeft + tr.clientWidth >= tr.scrollWidth - 4; tr.scrollTo({ left: d > 0 && end ? 0 : tr.scrollLeft + d * step(), behavior: 'smooth' }); };
+    on('#hlPrev', () => move(-1)); on('#hlNext', () => move(1));
+    clearInterval(hlTimer);
+    if (tr.scrollWidth > tr.clientWidth + 4 && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      let pause = false; tr.onpointerenter = tr.ontouchstart = () => (pause = true); tr.onpointerleave = () => (pause = false);
+      hlTimer = setInterval(() => !pause && !document.hidden && move(1), 3500);
+    }
+    const promos = PR ? (S.promotions || []).filter((x) => PR.promoActive(x, PR.spNow()) && x.product_ids.length) : [];
+    const bar = $('#promoBar'); if (bar) { bar.hidden = !promos.length; bar.innerHTML = promos.map((x) => `<span>🎉 <b>${esc(x.name)}</b> — ${promoTxt(x)} (podem misturar os sabores da promoção)</span>`).join(''); }
+  }
+  function gotoProduct(id) {
+    cat = 'all'; term = ''; const se = $('#search'); if (se) se.value = ''; renderTabs(); renderGrid();
+    const el = document.getElementById('prod-' + id); if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
   }
 
   function renderBadge() {
@@ -38,14 +71,16 @@
   function renderGrid() {
     let list = S.products.filter((p) => (cat === 'all' || p.category_id == cat) && (!term || (p.name + ' ' + (p.description || '')).toLowerCase().includes(term)));
     list.sort((a, b) => (b.available - a.available) || (b.featured - a.featured));
+    const pm = promoNow();
     $('#grid').innerHTML = list.length ? list.map((p) => {
-      const q = cart[p.id] || 0, promo = p.promo_price && +p.promo_price > 0;
-      return `<article class="card ${p.available ? '' : 'soldout'}" data-id="${p.id}">
-        ${!p.available ? '<span class="tag out">ESGOTADO</span>' : promo ? '<span class="tag">PROMO</span>' : p.featured ? '<span class="tag">DESTAQUE</span>' : ''}
+      const q = cart[p.id] || 0, promo = p.promo_price && +p.promo_price > 0, dp = pm[p.id];
+      return `<article class="card ${p.available ? '' : 'soldout'}" data-id="${p.id}" id="prod-${p.id}">
+        ${!p.available ? '<span class="tag out">ESGOTADO</span>' : dp ? '<span class="tag tag-day">🎉 PROMO DO DIA</span>' : promo ? '<span class="tag">PROMO</span>' : p.featured ? '<span class="tag">DESTAQUE</span>' : ''}
         <div class="card-img">${p.image ? `<img src="${esc(img(p.image))}" alt="${esc(p.name)}" loading="lazy">` : `<span class="ph">${esc(p.name[0])}</span>`}</div>
         <div class="card-body">
           <h3>${esc(p.name)}</h3><p class="desc">${esc(p.description || '')}</p>
-          <div class="price"><b>${brl(priceOf(p))}</b>${promo ? `<s>${brl(p.sale_price)}</s>` : ''}</div>
+          <div class="price"><b>${brl(dp ? dp.price1 : priceOf(p))}</b>${dp && +dp.price1 < priceOf(p) ? `<s>${brl(priceOf(p))}</s>` : !dp && promo ? `<s>${brl(p.sale_price)}</s>` : ''}</div>
+          ${dp ? `<div class="day-promo"><b>${esc(dp.name)}</b><span>${promoTxt(dp)}</span></div>` : ''}
           <div class="card-actions">${!p.available ? '<button class="btn btn-ghost" disabled>INDISPONÍVEL</button>'
             : q ? `<div class="qty" style="flex:1"><button data-dec>−</button><span>${q}</span><button data-inc>+</button></div>`
             : `<button class="btn btn-primary" data-add>ADICIONAR</button>`}</div>
@@ -57,12 +92,14 @@
     const it = items();
     $('#drawerTitle').textContent = 'SEU CARRINHO';
     if (!it.length) { $('#drawerBody').innerHTML = '<p class="empty">Seu carrinho está vazio 🍻</p>'; $('#drawerFoot').innerHTML = '<button class="btn btn-primary" data-close>VER PRODUTOS</button>'; return; }
+    const pc = priced(), lineTot = (id) => pc.items.filter((x) => x.product_id == id).reduce((a, x) => a + x.unit_price * x.quantity, 0);
+    const lineProm = (id) => (pc.items.find((x) => x.product_id == id && x.promotion) || {}).promotion;
     $('#drawerBody').innerHTML = it.map(({ p, q }) => `<div class="line" data-id="${p.id}">
       ${p.image ? `<img src="${esc(img(p.image))}" alt="">` : `<div class="mini">${esc(p.name[0])}</div>`}
-      <div class="info"><b>${esc(p.name)}</b><small>${brl(priceOf(p) * q)}</small></div>
+      <div class="info"><b>${esc(p.name)}</b><small>${brl(lineTot(p.id))}${lineProm(p.id) ? ` <span class="line-promo">🎉 ${esc(lineProm(p.id))}</span>` : ''}</small></div>
       <div class="qty"><button data-dec>−</button><span>${q}</span><button data-inc>+</button></div></div>`).join('');
     const st = subtotal(), min = +S.settings.min_order || 0, free = +S.settings.free_delivery_above || 0;
-    $('#drawerFoot').innerHTML = `<div class="row"><span>Subtotal</span><span>${brl(st)}</span></div>
+    $('#drawerFoot').innerHTML = `${pc.discount > 0 ? `<div class="row promo-row"><span>🎉 Desconto das promoções</span><span>− ${brl(pc.discount)}</span></div>` : ''}<div class="row"><span>Subtotal</span><span>${brl(st)}</span></div>
       <div class="row"><span>Entrega</span><span>calculada no próximo passo</span></div>
       ${free ? `<div class="row"><span>🎁 Entrega grátis acima de</span><span>${brl(free)}</span></div>` : ''}
       ${min && st < min ? `<div class="alert">Pedido mínimo: ${brl(min)}</div>` : ''}
@@ -166,6 +203,7 @@
 
   document.addEventListener('click', (e) => {
     const t = e.target.closest('button,[data-cat]'); if (!t) return;
+    if (t.dataset.goto) return gotoProduct(t.dataset.goto);
     const holder = t.closest('[data-id]'), id = holder && holder.dataset.id;
     if (t.dataset.cat) { cat = t.dataset.cat; renderTabs(); renderGrid(); }
     else if (t.hasAttribute('data-add')) { setQty(id, 1); const c = document.querySelector(`.card[data-id="${id}"]`); c && c.classList.add('added'); toast('Adicionado ao carrinho ✓'); }
@@ -233,7 +271,7 @@
       $('#status').className = 'status' + (S.open ? '' : ' closed');
       $('#status span').textContent = S.open ? `Aberto até ${s.close_time}` : `Fechado · abre ${s.open_time}`;
       for (const id of Object.keys(cart)) { const p = prod(id); if (!p || !p.available) delete cart[id]; else if (cart[id] > p.stock_quantity) cart[id] = p.stock_quantity; }
-      save(); renderTabs(); renderGrid(); renderBadge();
+      save(); renderTabs(); renderHighlights(); renderGrid(); renderBadge();
     } catch { $('#grid').innerHTML = '<p class="empty">Não foi possível carregar os produtos. Tente novamente.</p>'; }
   }
   load();

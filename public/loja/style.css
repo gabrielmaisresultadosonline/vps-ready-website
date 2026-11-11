@@ -208,3 +208,22 @@ h1,h2,h3,.display{font-family:'Bebas Neue','Oswald',Impact,sans-serif;letter-spa
 @media(max-width:560px){.ac-item{padding:12px}}
 .welcome{background:rgba(240,0,121,.12);border:1px solid rgba(240,0,121,.4);border-radius:10px;padding:10px 12px;font-size:.92em}
 .btn.fab,.btn.fab:hover{background:#FFD400;color:#000;border-color:#FFD400;box-shadow:0 10px 30px rgba(255,212,0,.45)}.btn.fab span{color:#000}
+
+/* ---------- Destaques do dia + promoções ---------- */
+.hl{margin:0 0 14px;padding:12px;border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(180deg,rgba(240,0,121,.10),transparent)}
+.hl-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.hl-head h3{font-family:'Bebas Neue',Impact,sans-serif;font-size:22px;letter-spacing:.04em;font-weight:400}.hl-head h3 span{color:var(--pink)}
+.hl-nav{display:flex;gap:6px}.hl-btn{width:34px;height:34px;border-radius:99px;border:1px solid var(--line);background:var(--bg2);color:var(--white);font-size:20px;line-height:1;cursor:pointer}.hl-btn:hover{border-color:var(--pink)}
+.hl-track{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch}.hl-track::-webkit-scrollbar{display:none}
+.hl-item{flex:0 0 122px;scroll-snap-align:start;display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--white);cursor:pointer;text-align:center;font:inherit}
+.hl-item:hover{border-color:var(--pink);box-shadow:var(--glow)}
+.hl-img{width:100%;aspect-ratio:1;border-radius:10px;overflow:hidden;display:grid;place-items:center;background:var(--bg2)}.hl-img img{width:100%;height:100%;object-fit:contain}
+.hl-img .ph{font-family:'Bebas Neue',Impact;font-size:36px;color:rgba(240,0,121,.6)}
+.hl-name{font-size:12.5px;font-weight:700;line-height:1.25}
+.hl-tag{font-size:11px;font-weight:800;line-height:1.3;padding:3px 8px;border-radius:8px;background:var(--wine);color:var(--white)}.hl-tag.is-promo{background:#FFD400;color:#111}
+.promo-bar{display:flex;flex-direction:column;gap:6px;margin:0 0 14px}.promo-bar span{padding:10px 14px;border-radius:12px;background:#FFD400;color:#111;font-size:14px;line-height:1.35}
+.tag.tag-day{background:#FFD400;color:#111;box-shadow:none}
+.day-promo{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:10px;background:rgba(255,212,0,.12);border:1px dashed #FFD400;font-size:12.5px}.day-promo b{color:#FFD400;font-size:12px}
+.line-promo{color:#FFD400;font-weight:700}.promo-row{color:#FFD400}
+.card.flash{animation:cardFlash 1.4s ease}@keyframes cardFlash{0%,60%{box-shadow:0 0 0 3px #FFD400,var(--glow)}100%{box-shadow:none}}
+@media (max-width:560px){.hl{padding:10px;margin:0 0 12px}.hl-item{flex-basis:108px}.hl-head h3{font-size:19px}}

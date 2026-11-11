@@ -24,6 +24,7 @@ pg_dump "$DB_URL" | gzip > "$BK"
 [ -s "$BK" ] || { echo "!! Backup falhou. Nada foi alterado."; exit 1; }
 echo "==> Backup salvo: $BK"
 
+tar --exclude=node_modules -czf "$BASE/backups/arquivos-antes-update-$(date +%F-%H%M%S).tar.gz" -C "$BASE" app 2>/dev/null && echo "==> Backup dos arquivos do programa salvo em $BASE/backups/" || true
 cd /tmp && rm -rf nsd-up && git clone -q "$REPO" nsd-up
 rsync -a --delete --exclude node_modules --exclude .env /tmp/nsd-up/vps/ "$APP/"
 ln -sf "$ENV_FILE" "$APP/.env"

@@ -96,3 +96,38 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS change_for NUMERIC(12,2);
 
 -- Exclusão segura de produtos (nunca apaga histórico)
 ALTER TABLE products ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+-- Promoções por dia da semana (preço original do produto nunca é alterado)
+CREATE TABLE IF NOT EXISTS promotions (
+  id SERIAL PRIMARY KEY, name TEXT NOT NULL, days INT[] NOT NULL DEFAULT '{}',
+  price1 NUMERIC(12,2) NOT NULL, price2 NUMERIC(12,2),
+  start_time TEXT, end_time TEXT, start_date TEXT, end_date TEXT,
+  active BOOLEAN NOT NULL DEFAULT TRUE, priority INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS promotion_products (
+  promotion_id INT NOT NULL REFERENCES promotions(id) ON DELETE CASCADE,
+  product_id INT NOT NULL REFERENCES products(id), PRIMARY KEY (promotion_id, product_id)
+);
+-- Destaques do topo do cardápio (não escondem nenhum produto)
+CREATE TABLE IF NOT EXISTS highlights (
+  id SERIAL PRIMARY KEY, product_id INT NOT NULL REFERENCES products(id), days INT[] NOT NULL DEFAULT '{}',
+  sort_order INT NOT NULL DEFAULT 0, active BOOLEAN NOT NULL DEFAULT TRUE, image TEXT,
+  start_date TEXT, end_date TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS promotion_name TEXT;
+
+-- Promoções iniciais (cria só uma vez; liga aos produtos que já existem pelo nome, nunca cria produto)
+DO $$
+DECLARE t INT; w INT;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM settings WHERE key='promos_seeded') THEN
+    INSERT INTO promotions(name,days,price1,price2) VALUES ('TERÇA DA CAIPIRINHA DE LIMÃO','{2}',25,40) RETURNING id INTO t;
+    INSERT INTO promotions(name,days,price1,price2) VALUES ('QUARTA DO CAPETA!','{3}',25,40) RETURNING id INTO w;
+    INSERT INTO promotion_products SELECT t, id FROM products WHERE deleted_at IS NULL AND (name ILIKE 'caipirinha de lim%' OR name ILIKE 'caipirinha cremosa de lim%') ON CONFLICT DO NOTHING;
+    INSERT INTO promotion_products SELECT w, id FROM products WHERE deleted_at IS NULL AND (name ILIKE '%morango dos deuses%' OR name ILIKE '%maracuj% supremo%' OR name ILIKE '%abacaxi divino%' OR name ILIKE '%chocolate trufado%') ON CONFLICT DO NOTHING;
+    INSERT INTO highlights(product_id,days,sort_order) SELECT product_id, '{2}', 0 FROM promotion_products WHERE promotion_id=t;
+    INSERT INTO highlights(product_id,days,sort_order) SELECT product_id, '{3}', 0 FROM promotion_products WHERE promotion_id=w;
+    INSERT INTO settings(key,value) VALUES ('promos_seeded','1') ON CONFLICT (key) DO NOTHING;
+  END IF;
+END $$;

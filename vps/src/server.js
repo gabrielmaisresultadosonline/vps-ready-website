@@ -8,6 +8,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const { Pool } = require('pg');
+const PR = require('../public/promo.js');
 
 const PORT = Number(process.env.PORT || 3010);
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -134,6 +135,15 @@ app.get('/api/public/places/details', wrap(async (req, res) => {
     city: c('administrative_area_level_2') || c('locality'), lat: j.location?.latitude, lng: j.location?.longitude });
 }));
 
+// ---------- Promoções e destaques ----------
+const PROMO_SQL = `SELECT p.*, COALESCE(array_agg(pp.product_id) FILTER (WHERE pp.product_id IS NOT NULL),'{}') product_ids
+  FROM promotions p LEFT JOIN promotion_products pp ON pp.promotion_id=p.id GROUP BY p.id ORDER BY p.priority,p.id`;
+const loadPromos = async (db = pool) => (await db.query(PROMO_SQL)).rows;
+const HL_SQL = `SELECT h.*, p.name product_name, p.image product_image FROM highlights h JOIN products p ON p.id=h.product_id
+  WHERE p.deleted_at IS NULL ORDER BY h.sort_order,h.id`;
+const dayList = (d) => (Array.isArray(d) ? d : String(d || '').split(',')).map(Number).filter((x) => x >= 0 && x <= 6);
+const optStr = (v) => (v === undefined || v === null || String(v).trim() === '' ? null : String(v).trim());
+
 // ---------- Público ----------
 app.get('/api/public/store', wrap(async (req, res) => {
   const s = await getSettings();
@@ -143,11 +153,16 @@ app.get('/api/public/store', wrap(async (req, res) => {
        FROM products WHERE deleted_at IS NULL AND status<>'rascunho' ORDER BY sort_order,name`),
     q('SELECT id,name,delivery_fee,estimated_minutes FROM neighborhoods WHERE active ORDER BY name'),
   ]);
+  const [promos, hls] = await Promise.all([loadPromos(), q(HL_SQL)]);
+  const visible = new Set(prods.rows.map((p) => p.id)), now = PR.spNow();
   const pub = ['store_name', 'tagline', 'whatsapp', 'hero_title', 'hero_subtitle', 'hero_image', 'hero_enabled', 'logo', 'favicon', 'open_time', 'close_time', 'min_order', 'free_delivery_above', 'payment_methods', 'store_city', 'store_lat', 'store_lng'];
   res.json({
     settings: Object.fromEntries(pub.map((k) => [k, s[k]])), open: isOpen(s), categories: cats.rows,
     products: prods.rows.map((p) => ({ ...p, available: p.status === 'ativo' && p.stock_quantity > 0 })),
     neighborhoods: nbs.rows,
+    now,
+    promotions: promos.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name, days: p.days, price1: p.price1, price2: p.price2, start_time: p.start_time, end_time: p.end_time, start_date: p.start_date, end_date: p.end_date, active: p.active, priority: p.priority, product_ids: p.product_ids.filter((id) => visible.has(id)) })),
+    highlights: PR.dayHighlights(hls.rows, now).filter((h) => visible.has(h.product_id)).map((h) => ({ id: h.id, product_id: h.product_id, name: h.product_name, image: h.image || h.product_image })),
   });
 }));
 
@@ -165,16 +180,21 @@ app.post('/api/public/orders', wrap(async (req, res) => {
     await client.query('BEGIN');
     const nb = (await client.query('SELECT * FROM neighborhoods WHERE id=$1 AND active', [b.neighborhood_id])).rows[0];
     if (!nb) throw bad('Bairro indisponível para entrega');
-    let subtotal = 0; const lines = [];
+    const raw = [], seen = new Map();
     for (const it of b.items) {
       const qty = Math.floor(num(it.quantity));
       if (qty < 1 || qty > 999) throw bad('Quantidade inválida');
       const p = (await client.query('SELECT * FROM products WHERE id=$1', [it.product_id])).rows[0];
       if (!p || p.status !== 'ativo') throw bad(`Produto indisponível: ${p ? p.name : it.product_id}`);
       if (qty > p.stock_quantity) throw bad(`Estoque insuficiente de ${p.name} (disponível: ${p.stock_quantity})`);
+      if (seen.has(p.id)) throw bad('Produto repetido no carrinho');
       const price = p.promo_price && num(p.promo_price) > 0 ? num(p.promo_price) : num(p.sale_price);
-      subtotal += price * qty; lines.push({ p, qty, price });
+      seen.set(p.id, p); raw.push({ product_id: p.id, quantity: qty, price, name: p.name });
     }
+    // Preço final calculado SEMPRE aqui no servidor (dia e hora de São Paulo); o navegador não decide preço
+    const priced = PR.priceCart(raw, await loadPromos(client));
+    const subtotal = priced.subtotal;
+    const lines = priced.items.map((x) => ({ p: seen.get(x.product_id), qty: x.quantity, price: x.unit_price, promo: x.promotion }));
     if (num(s.min_order) > 0 && subtotal < num(s.min_order)) throw bad(`Pedido mínimo: R$ ${num(s.min_order).toFixed(2)}`);
     const fee = num(s.free_delivery_above) > 0 && subtotal >= num(s.free_delivery_above) ? 0 : num(nb.delivery_fee);
     const total = subtotal + fee;
@@ -191,8 +211,8 @@ app.post('/api/public/orders', wrap(async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id,order_number`,
       [cust.id, name, phone, nb.name, addr, subtotal, fee, total, b.payment_method || null, String(b.notes || '').slice(0, 500) || null, changeFor])).rows[0];
     for (const l of lines) await client.query(
-      'INSERT INTO order_items (order_id,product_id,product_name_snapshot,quantity,unit_price,unit_cost_snapshot) VALUES ($1,$2,$3,$4,$5,$6)',
-      [o.id, l.p.id, l.p.name, l.qty, l.price, l.p.current_cost]);
+      'INSERT INTO order_items (order_id,product_id,product_name_snapshot,quantity,unit_price,unit_cost_snapshot,promotion_name) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+      [o.id, l.p.id, l.p.name, l.qty, l.price, l.p.current_cost, l.promo || null]);
     await client.query('COMMIT');
     const pLat = Number(b.lat), pLng = Number(b.lng);
     if (b.lat !== undefined && b.lat !== '' && isFinite(pLat) && isFinite(pLng) && Math.abs(pLat) <= 90 && Math.abs(pLng) <= 180) {
@@ -205,7 +225,8 @@ app.post('/api/public/orders', wrap(async (req, res) => {
       '*CLIENTE:*', `Nome: ${name}`, `WhatsApp: ${fmtPhone}`, '',
       '*ENDEREÇO:*', `Bairro: ${nb.name}`, `Rua: ${b.street}`, `Número: ${b.number}`,
       b.complement ? `Complemento: ${b.complement}` : null, b.reference ? `Referência: ${b.reference}` : null, '',
-      '*PRODUTOS:*', ...lines.map((l) => `${l.qty}x ${l.p.name} — ${brl(l.price * l.qty)}`), '',
+      '*PRODUTOS:*', ...lines.map((l) => `${l.qty}x ${l.p.name} — ${brl(l.price * l.qty)}${l.promo ? ` 🎉 _${l.promo}_` : ''}`), '',
+      priced.discount > 0 ? `Desconto promoção: -${brl(priced.discount)}` : null,
       `Subtotal: ${brl(subtotal)}`, `Entrega: ${fee ? brl(fee) : 'Grátis'}`, `*TOTAL: ${brl(total)}*`,
       b.payment_method ? `Pagamento: ${b.payment_method}` : null,
       changeFor ? `Troco para: ${brl(changeFor)} → levar troco de *${brl(changeFor - total)}*` : (/dinheiro/i.test(b.payment_method || '') ? 'Não precisa de troco' : null),
@@ -281,7 +302,7 @@ A.post('/reset', wrap(async (req, res) => {
     if (w.has('pedidos')) await c.query('DELETE FROM finance_entries WHERE order_id IS NOT NULL');
     if (w.has('estoque')) { await c.query('DELETE FROM finance_entries WHERE stock_movement_id IS NOT NULL'); await c.query('DELETE FROM stock_movements'); await c.query('UPDATE products SET stock_quantity=0'); }
     if (w.has('pedidos')) { await c.query('UPDATE stock_movements SET order_id=NULL'); await c.query('DELETE FROM order_items'); await c.query('DELETE FROM orders'); await c.query('DELETE FROM customers'); await c.query('ALTER SEQUENCE orders_order_number_seq RESTART WITH 1'); }
-    if (w.has('produtos')) await c.query('DELETE FROM products');
+    if (w.has('produtos')) { await c.query('DELETE FROM highlights'); await c.query('DELETE FROM promotion_products'); await c.query('DELETE FROM products'); }
     await c.query('INSERT INTO audit_log(user_name,action,details) VALUES($1,$2,$3)', [req.user.name, 'zerar', [...w].join(',')]);
   });
   res.json({ ok: true });
@@ -334,6 +355,47 @@ A.delete('/products/:id', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// Promoções e descontos
+A.get('/promotions', wrap(async (req, res) => res.json(await loadPromos())));
+async function savePromo(req, res) {
+  const b = req.body || {}, id = req.params.id;
+  const name = String(b.name || '').trim().slice(0, 120); if (!name) throw bad('Informe o nome da promoção');
+  const price1 = num(b.price1), price2 = optStr(b.price2) === null ? null : num(b.price2);
+  if (!(price1 > 0)) throw bad('Informe o preço de 1 unidade');
+  if (price2 !== null && price2 <= 0) throw bad('Preço de 2 unidades inválido');
+  const ids = [...new Set((b.product_ids || []).map(Number).filter(Boolean))];
+  const vals = [name, dayList(b.days), price1, price2, optStr(b.start_time), optStr(b.end_time), optStr(b.start_date), optStr(b.end_date), b.active !== false && b.active !== '0', Math.floor(num(b.priority))];
+  const r = await tx(async (c) => {
+    const row = id
+      ? (await c.query('UPDATE promotions SET name=$1,days=$2,price1=$3,price2=$4,start_time=$5,end_time=$6,start_date=$7,end_date=$8,active=$9,priority=$10,updated_at=now() WHERE id=$11 RETURNING *', [...vals, id])).rows[0]
+      : (await c.query('INSERT INTO promotions(name,days,price1,price2,start_time,end_time,start_date,end_date,active,priority) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *', vals)).rows[0];
+    if (!row) throw bad('Promoção não encontrada', 404);
+    await c.query('DELETE FROM promotion_products WHERE promotion_id=$1', [row.id]);
+    for (const pid of ids) await c.query('INSERT INTO promotion_products(promotion_id,product_id) SELECT $1,id FROM products WHERE id=$2 ON CONFLICT DO NOTHING', [row.id, pid]);
+    await c.query('INSERT INTO audit_log(user_name,action,details) VALUES($1,$2,$3)', [req.user.name, 'promocao_salva', name]);
+    return row;
+  });
+  res.json(r);
+}
+A.post('/promotions', wrap(savePromo));
+A.put('/promotions/:id', wrap(savePromo));
+A.delete('/promotions/:id', wrap(async (req, res) => { await q('DELETE FROM promotions WHERE id=$1', [req.params.id]); res.json({ ok: true }); }));
+
+// Produtos em destaque
+A.get('/highlights', wrap(async (req, res) => res.json((await q(HL_SQL)).rows)));
+async function saveHl(req, res) {
+  const b = req.body || {}, id = req.params.id;
+  const p = (await q('SELECT id FROM products WHERE id=$1 AND deleted_at IS NULL', [b.product_id])).rows[0]; if (!p) throw bad('Escolha um produto');
+  const vals = [p.id, dayList(b.days), Math.floor(num(b.sort_order)), b.active !== false && b.active !== '0', optStr(b.image), optStr(b.start_date), optStr(b.end_date)];
+  const r = id
+    ? (await q('UPDATE highlights SET product_id=$1,days=$2,sort_order=$3,active=$4,image=$5,start_date=$6,end_date=$7 WHERE id=$8 RETURNING *', [...vals, id])).rows[0]
+    : (await q('INSERT INTO highlights(product_id,days,sort_order,active,image,start_date,end_date) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *', vals)).rows[0];
+  res.json(r);
+}
+A.post('/highlights', wrap(saveHl));
+A.put('/highlights/:id', wrap(saveHl));
+A.delete('/highlights/:id', wrap(async (req, res) => { await q('DELETE FROM highlights WHERE id=$1', [req.params.id]); res.json({ ok: true }); }));
+
 // Estoque
 A.post('/stock/entry', wrap(async (req, res) => {
   const b = req.body, qty = Math.floor(num(b.quantity));
@@ -375,7 +437,7 @@ A.get('/orders', wrap(async (req, res) => {
   if (status) { p.push(status); w.push(`o.status=$${p.length}`); }
   if (from) { p.push(from); w.push(`(o.created_at AT TIME ZONE 'America/Sao_Paulo')::date>=$${p.length}::date`); }
   if (to) { p.push(to); w.push(`(o.created_at AT TIME ZONE 'America/Sao_Paulo')::date<=$${p.length}::date`); }
-  const r = await q(`SELECT o.*, COALESCE(json_agg(json_build_object('name',i.product_name_snapshot,'quantity',i.quantity,'unit_price',i.unit_price,'unit_cost',i.unit_cost_snapshot)) FILTER (WHERE i.id IS NOT NULL),'[]') AS items,
+  const r = await q(`SELECT o.*, COALESCE(json_agg(json_build_object('name',i.product_name_snapshot,'quantity',i.quantity,'unit_price',i.unit_price,'unit_cost',i.unit_cost_snapshot,'promotion',i.promotion_name)) FILTER (WHERE i.id IS NOT NULL),'[]') AS items,
     COALESCE(SUM(i.quantity*i.unit_cost_snapshot),0) AS cost
     FROM orders o LEFT JOIN order_items i ON i.order_id=o.id ${w.length ? 'WHERE ' + w.join(' AND ') : ''} GROUP BY o.id ORDER BY o.id DESC LIMIT 500`, p);
   res.json(r.rows);
