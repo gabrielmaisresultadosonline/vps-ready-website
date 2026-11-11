@@ -41,16 +41,7 @@ async function getSettings() {
   const r = await q('SELECT key,value FROM settings');
   return Object.fromEntries(r.rows.map((x) => [x.key, x.value]));
 }
-function isOpen(s) {
-  if (s.store_open === '1') return true;
-  if (s.store_open === '0') return false;
-  const now = new Date(new Date().toLocaleString('en-US', { timeZone: process.env.TZ_STORE || 'America/Sao_Paulo' }));
-  const m = now.getHours() * 60 + now.getMinutes();
-  const [oh, om] = (s.open_time || '00:00').split(':').map(Number);
-  const [ch, cm] = (s.close_time || '23:59').split(':').map(Number);
-  const o = oh * 60 + om, c = ch * 60 + cm;
-  return o <= c ? m >= o && m <= c : m >= o || m <= c;
-}
+function isOpen(s) { return PR.storeStatus(s).open; }
 const onlyDigits = (s) => String(s || '').replace(/\D/g, '');
 
 // ---------- Mapa: endereço -> coordenadas (OpenStreetMap / Nominatim, gratuito) ----------
@@ -157,7 +148,7 @@ app.get('/api/public/store', wrap(async (req, res) => {
   const visible = new Set(prods.rows.map((p) => p.id)), now = PR.spNow();
   const pub = ['store_name', 'tagline', 'whatsapp', 'hero_title', 'hero_subtitle', 'hero_image', 'hero_enabled', 'logo', 'favicon', 'open_time', 'close_time', 'min_order', 'free_delivery_above', 'payment_methods', 'store_city', 'store_lat', 'store_lng'];
   res.json({
-    settings: Object.fromEntries(pub.map((k) => [k, s[k]])), open: isOpen(s), categories: cats.rows,
+    settings: Object.fromEntries(pub.map((k) => [k, s[k]])), open: isOpen(s), status_label: PR.storeStatus(s).label, week: PR.weekHours(s), categories: cats.rows,
     products: prods.rows.map((p) => ({ ...p, available: p.status === 'ativo' && p.stock_quantity > 0 })),
     neighborhoods: nbs.rows,
     now,

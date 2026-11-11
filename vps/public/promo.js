@@ -62,7 +62,25 @@
     var pick = today.length ? today : ok.filter(function (h) { return !days(h).length; });
     return pick.sort(function (a, b) { return (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || a.id - b.id; });
   }
-  var api = { TZ: TZ, DAYS: DAYS, spNow: spNow, promoActive: promoActive, promoMap: promoMap, groupTotal: groupTotal, priceCart: priceCart, dayHighlights: dayHighlights };
+  // Horário por dia da semana. week_hours = JSON [{dow,open,from,to}] ; sem ele usa open_time/close_time para todos os dias
+  function weekHours(st) {
+    var w = null; try { w = JSON.parse(st.week_hours || 'null'); } catch (e) {}
+    return [0, 1, 2, 3, 4, 5, 6].map(function (d) {
+      var x = Array.isArray(w) && w.find(function (y) { return Number(y.dow) === d; });
+      return x ? { dow: d, open: !!x.open, from: x.from || '00:00', to: x.to || '23:59' } : { dow: d, open: true, from: st.open_time || '00:00', to: st.close_time || '23:59' };
+    });
+  }
+  function storeStatus(st, n) {
+    n = n || spNow(); var w = weekHours(st), t = n.time, today = w[n.dow], y = w[(n.dow + 6) % 7];
+    if (st.store_open === '0') return { open: false, label: 'Fechado no momento' };
+    if (y.open && y.from > y.to && t <= y.to) return { open: true, label: 'Aberto até ' + y.to };
+    var inToday = today.open && (today.from <= today.to ? t >= today.from && t <= today.to : t >= today.from);
+    if (st.store_open === '1' || inToday) return { open: true, label: 'Aberto até ' + (today.open ? today.to : '23:59') };
+    if (today.open && t < today.from) return { open: false, label: 'Fechado · abre hoje às ' + today.from };
+    for (var i = 1; i <= 7; i++) { var d = w[(n.dow + i) % 7]; if (d.open) return { open: false, label: 'Fechado · abre ' + (i === 1 ? 'amanhã' : DAYS[d.dow].toLowerCase()) + ' às ' + d.from }; }
+    return { open: false, label: 'Fechado' };
+  }
+  var api = { weekHours: weekHours, storeStatus: storeStatus, TZ: TZ, DAYS: DAYS, spNow: spNow, promoActive: promoActive, promoMap: promoMap, groupTotal: groupTotal, priceCart: priceCart, dayHighlights: dayHighlights };
   root.NSDPromo = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

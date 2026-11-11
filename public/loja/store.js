@@ -269,7 +269,7 @@
       $('#tagline').textContent = $('#footTag').textContent = s.tagline || '';
       $('#waBtn').href = 'https://wa.me/' + String(s.whatsapp || '').replace(/\D/g, '');
       $('#status').className = 'status' + (S.open ? '' : ' closed');
-      $('#status span').textContent = S.open ? `Aberto até ${s.close_time}` : `Fechado · abre ${s.open_time}`;
+      $('#status span').textContent = S.status_label || (S.open ? `Aberto até ${s.close_time}` : `Fechado · abre ${s.open_time}`);
       for (const id of Object.keys(cart)) { const p = prod(id); if (!p || !p.available) delete cart[id]; else if (cart[id] > p.stock_quantity) cart[id] = p.stock_quantity; }
       save(); renderTabs(); renderHighlights(); renderGrid(); renderBadge();
     } catch { $('#grid').innerHTML = '<p class="empty">Não foi possível carregar os produtos. Tente novamente.</p>'; }

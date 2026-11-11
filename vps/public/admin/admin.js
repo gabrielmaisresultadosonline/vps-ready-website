@@ -602,7 +602,7 @@
       ${sec('👥', 'Clientes', 'clientes', `<p>Clientes são salvos automaticamente pelo telefone a cada pedido: nome, endereço, quantidade de pedidos, total gasto e último pedido. Clique para falar no WhatsApp.</p>`)}
       ${sec('⚙️', 'Configurações', 'configuracoes', `<ul><li><b>WhatsApp</b> que recebe os pedidos (com 55 + DDD).</li><li><b>Formas de pagamento</b> (ex.: Pix, Dinheiro, Cartão). Com “Dinheiro”, o cliente informa se precisa de troco e o sistema calcula.</li>
         <li><b>Endereço da loja</b>: usado nos dados da loja. <b>Minutos para baixa automática</b> (padrão 40).</li>
-        <li><b>Horário</b> de abertura/fechamento ou forçar aberto/fechado. Mostrar ou esconder esgotados.</li><li>Banner, logo e favicon. Trocar sua senha.</li>
+        <li><b>Horário por dia da semana</b>: para cada dia (segunda a domingo) escolha Aberto ou Fechado e o horário “de … até …”. Dias que não trabalha, marque Fechado. Se o horário passa da meia-noite (ex.: 18:00 até 02:00) também funciona. A loja mostra “Aberto até 23:59” (o horário do dia) ou “Fechado · abre amanhã às 18:00”. O Modo pode forçar aberto/fechado. Mostrar ou esconder esgotados.</li><li>Banner, logo e favicon. Trocar sua senha.</li>
         <li><b>Zerar dados</b>: apaga estoque, pedidos, financeiro e/ou produtos para começar do zero. Pede a sua senha e uma confirmação.</li></ul>`)}
       ${sec('🛒', 'Como o cliente compra', '', `<ol><li>Na loja (ou pelo QR Code), vê os destaques do dia no topo, escolhe os produtos — os preços de promoção do dia já aparecem — e toca em “Finalizar pedido”.</li><li>Preenche nome, WhatsApp, bairro, endereço e forma de pagamento (e troco, se for dinheiro).</li>
         <li>O pedido é salvo no painel e abre o WhatsApp da loja com a mensagem pronta.</li><li>Em “Meu pedido”, o cliente digita o telefone e acompanha: Recebido → Em preparação → A caminho → Entregue.</li></ol>`)}
@@ -617,7 +617,11 @@
         <div class="panel form"><h3 class="field full">Endereço da loja</h3>${f('store_address', 'Rua e número da loja')}${f('store_city', 'Cidade, UF')}
           ${f('auto_deliver_minutes', 'Minutos para baixa automática como entregue', 'number', 'min="5"')}
           <p class="muted field full"></p></div>
-        <div class="panel form"><h3 class="field full">Horário de funcionamento</h3>${f('open_time', 'Abre às', 'time')}${f('close_time', 'Fecha às', 'time')}
+        <div class="panel form"><h3 class="field full">Horário de funcionamento por dia</h3>
+          <div class="field full week">${window.NSDPromo.weekHours(s).map((d) => `<div class="wk" data-dow="${d.dow}"><b>${window.NSDPromo.DAYS[d.dow]}</b>
+            <select data-k="open"><option value="1">Aberto</option><option value="0" ${d.open ? '' : 'selected'}>Fechado</option></select>
+            <input type="time" data-k="from" value="${d.from}" ${d.open ? '' : 'disabled'}><span>até</span><input type="time" data-k="to" value="${d.to}" ${d.open ? '' : 'disabled'}></div>`).join('')}
+            <input type="hidden" name="week_hours"><p class="muted">Ex.: Segunda Fechado · Terça a Quinta 18:00 até 23:59 · Sexta e Sábado 18:00 até 02:00 (passa da meia-noite). A loja mostra “Aberto até …” com o horário do dia.</p></div>
           <div class="field full"><label>Modo</label><select name="store_open"><option value="auto">Automático pelo horário</option><option value="1" ${s.store_open === '1' ? 'selected' : ''}>Forçar ABERTO</option><option value="0" ${s.store_open === '0' ? 'selected' : ''}>Forçar FECHADO</option></select></div>
           <div class="field full"><label>Produtos esgotados na loja</label><select name="show_sold_out"><option value="1">Mostrar como ESGOTADO</option><option value="0" ${s.show_sold_out === '0' ? 'selected' : ''}>Esconder</option></select></div></div>
         <div class="panel form"><h3 class="field full">Banner principal (promoção / destaque)</h3><div class="field full"><label>Mostrar banner na loja</label><select name="hero_enabled"><option value="1">✅ Ativado</option><option value="0" ${s.hero_enabled === '0' ? 'selected' : ''}>⛔ Desativado</option></select></div>${f('hero_title', 'Título')}${f('hero_subtitle', 'Subtítulo')}${imgField('hero_image', s.hero_image, 'Imagem do banner')}</div>
@@ -636,7 +640,9 @@
             <button class="btn btn-danger">ZERAR DADOS SELECIONADOS</button>
           </form></div>`;
       bindImgFields(view);
-      $('#cfg').onsubmit = async (e) => { e.preventDefault(); await api('/admin/settings', { method: 'PUT', body: Object.fromEntries(new FormData(e.target)) }); toast('Configurações salvas ✓'); pages.configuracoes(); };
+      view.querySelectorAll('.wk select').forEach((sel) => (sel.onchange = () => sel.parentElement.querySelectorAll('input').forEach((i) => (i.disabled = sel.value === '0'))));
+      $('#cfg').onsubmit = async (e) => { e.preventDefault();
+        e.target.week_hours.value = JSON.stringify([...view.querySelectorAll('.wk')].map((w) => ({ dow: +w.dataset.dow, open: w.querySelector('[data-k=open]').value === '1', from: w.querySelector('[data-k=from]').value || '00:00', to: w.querySelector('[data-k=to]').value || '23:59' }))); await api('/admin/settings', { method: 'PUT', body: Object.fromEntries(new FormData(e.target)) }); toast('Configurações salvas ✓'); pages.configuracoes(); };
       $('#reset').onsubmit = async (e) => {
         e.preventDefault(); const f = e.target, what = [...f.querySelectorAll('[name=what]:checked')].map((x) => x.value);
         if (!what.length) return toast('Marque o que deseja zerar');

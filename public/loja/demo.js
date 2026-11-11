@@ -113,7 +113,7 @@
     var mins = num(db.settings.auto_deliver_minutes) || 40;
     db.orders.forEach(function (o) { if (o.status === 'saiu' && o.out_for_delivery_at && Date.now() - new Date(o.out_for_delivery_at) >= mins * 6e4) setStatus(o.id, 'entregue'); });
   }
-  function isOpen() { var s = db.settings; if (s.store_open === '1') return true; if (s.store_open === '0') return false; var t = new Date().toTimeString().slice(0, 5); return t >= s.open_time && t <= s.close_time; }
+  function isOpen() { return window.NSDPromo.storeStatus(db.settings).open; }
   function inRange(d, q) { var f = q.get('from') || '1900-01-01', t = q.get('to') || '2999-12-31'; return d >= f && d <= t; }
 
   function handle(method, path, q, body) {
@@ -129,7 +129,7 @@
     if (path === 'public/store') {
       var show = s.show_sold_out === '1';
       return {
-        settings: s, open: isOpen(), categories: db.categories.filter(function (c) { return c.active; }),
+        settings: s, open: isOpen(), status_label: window.NSDPromo.storeStatus(s).label, categories: db.categories.filter(function (c) { return c.active; }),
         products: db.products.filter(function (p) { return p.status !== 'rascunho'; }).map(function (p) { return Object.assign({}, p, { available: p.status === 'ativo' && p.stock_quantity > 0 }); }),
         neighborhoods: db.neighborhoods.filter(function (n) { return n.active; }),
         now: window.NSDPromo.spNow(), promotions: db.promotions.filter(function (p) { return p.active; }),

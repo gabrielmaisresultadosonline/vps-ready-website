@@ -37,3 +37,12 @@ describe("destaques do dia", () => {
   it("outro dia sem destaque próprio mostra os gerais", () => expect(P.dayHighlights(h, thu).map((x: any) => x.product_id)).toEqual([5]));
   it("sem nenhum destaque válido, a faixa fica vazia", () => expect(P.dayHighlights([{ ...h[0], active: false }], thu)).toEqual([]));
 });
+
+describe("horário por dia", () => {
+  const wk = JSON.stringify([{ dow: 1, open: false }, { dow: 3, open: true, from: "18:00", to: "23:59" }, { dow: 5, open: true, from: "18:00", to: "02:00" }]);
+  const st = { week_hours: wk, store_open: "auto" };
+  it("segunda marcada fechada fica fechada", () => expect(P.storeStatus(st, { dow: 1, time: "20:00" }).open).toBe(false));
+  it("quarta 20:00 aberta até 23:59", () => expect(P.storeStatus(st, { dow: 3, time: "20:00" })).toEqual({ open: true, label: "Aberto até 23:59" }));
+  it("quarta 17:00 abre hoje às 18:00", () => expect(P.storeStatus(st, { dow: 3, time: "17:00" }).label).toBe("Fechado · abre hoje às 18:00"));
+  it("sexta 18:00-02:00 continua aberta sábado 01:00", () => expect(P.storeStatus(st, { dow: 6, time: "01:00" }).open).toBe(true));
+});
