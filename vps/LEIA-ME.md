@@ -39,7 +39,14 @@ pm2 status            # mro-api, video-server e nosilva-drinks online
 sudo nginx -t
 ```
 
-## Atualizar no futuro (seguro: faz backup antes e não apaga dados)
+## Atualizar no futuro (o site JÁ está instalado — entre na pasta dele)
+```bash
+cd /var/www/nosilva-drinks/app
+sudo bash update.sh
+```
+Pronto: o script baixa o código novo do GitHub para uma pasta provisória (`/tmp`), faz backup do banco e dos arquivos, troca só os arquivos do programa e reinicia só o `nosilva-drinks`. Pode rodar de qualquer pasta também (`sudo bash /var/www/nosilva-drinks/app/update.sh`).
+
+Se um dia o `update.sh` da pasta estiver velho ou faltar, use este sobressalente:
 ```bash
 cd /tmp && rm -rf nsd && git clone https://github.com/gabrielmaisresultadosonline/vps-ready-website.git nsd && sudo bash /tmp/nsd/vps/update.sh
 ```
