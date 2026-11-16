@@ -126,7 +126,7 @@
     }
     if (path === 'auth/logout') { db.logged = false; return { ok: true }; }
     // ---------- público ----------
-    if (path === 'public/version') return { version: '2026.11.11-3 · promoções, destaques, QR Code, horários por dia' };
+    if (path === 'public/version') return { version: '2026.11.16-1 · impressão térmica 58mm' };
     if (path === 'public/store') {
       var show = s.show_sold_out === '1';
       return {

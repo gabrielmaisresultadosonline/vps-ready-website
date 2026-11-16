@@ -10,6 +10,48 @@
   const toast = (t) => { const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 2000); };
   const view = $('#view');
   let charts = [];
+  // ===== Impressão térmica 58mm (ESC/POS via driver do sistema) =====
+  const ORD = {}; let storeName = 'No Silva Drinks';
+  const cache = (list) => (list || []).forEach((o) => (ORD[o.id] = o));
+  const autoPrint = () => localStorage.getItem('nsd_autoprint') === '1';
+  const PAY = (m) => esc(m || '—');
+  function receipt(o) {
+    const n = String(o.order_number).padStart(6, '0');
+    const items = (o.items || []).map((i) => `<tr><td class="q">${i.quantity}x</td><td>${esc(i.name)}${i.promotion ? `<br><small>* ${esc(i.promotion)}</small>` : ''}</td><td class="r">${brl((i.unit_price || 0) * i.quantity)}</td></tr>`).join('');
+    const troc = +o.change_for > 0 ? `<div class="ln2"><span>Troco para</span><b>${brl(o.change_for)}</b></div><div class="ln2 big"><span>LEVAR TROCO</span><b>${brl(o.change_for - o.total)}</b></div>` : /dinheiro/i.test(o.payment_method || '') ? '<div class="c">Sem troco</div>' : '';
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Pedido ${n}</title><style>
+      @page{size:58mm auto;margin:0}*{box-sizing:border-box}
+      body{width:58mm;margin:0;padding:2mm 3mm;font:12px/1.3 'Courier New',monospace;color:#000;background:#fff}
+      h1{font-size:15px;text-align:center;margin:0 0 2px}.c{text-align:center}.big{font-size:14px;font-weight:bold}
+      .hr{border-top:1px dashed #000;margin:4px 0}table{width:100%;border-collapse:collapse}td{vertical-align:top;padding:1px 0}
+      .q{width:7mm;font-weight:bold}.r{text-align:right;white-space:nowrap}.ln2{display:flex;justify-content:space-between;gap:4px}small{font-size:10px}
+    </style></head><body>
+      <h1>${esc(storeName)}</h1><div class="c">${dt(o.created_at)}</div>
+      <div class="c big">PEDIDO #${n}</div><div class="c">${o.source === 'manual' ? 'VENDA MANUAL' : 'PEDIDO PELO SITE'}</div>
+      <div class="hr"></div>
+      <div><b>${esc(o.customer_name || 'Cliente')}</b></div>${o.customer_phone ? `<div>Tel: ${esc(o.customer_phone)}</div>` : ''}
+      ${o.address || o.neighborhood_name ? `<div>${esc(o.address || '')}${o.neighborhood_name ? ' - ' + esc(o.neighborhood_name) : ''}</div>` : ''}
+      <div class="hr"></div><table>${items}</table><div class="hr"></div>
+      ${o.subtotal != null ? `<div class="ln2"><span>Produtos</span><span>${brl(o.subtotal)}</span></div>` : ''}
+      ${+o.delivery_fee ? `<div class="ln2"><span>Entrega</span><span>${brl(o.delivery_fee)}</span></div>` : ''}
+      <div class="ln2 big"><span>TOTAL</span><span>${brl(o.total)}</span></div>
+      <div class="ln2"><span>Pagamento</span><b>${PAY(o.payment_method)}</b></div>${troc}
+      ${o.notes ? `<div class="hr"></div><div><b>OBS:</b> ${esc(o.notes)}</div>` : ''}
+      <div class="hr"></div><div class="c">Obrigado pela preferência!</div><div style="height:8mm"></div>
+    </body></html>`;
+  }
+  function printOrder(o) {
+    if (!o) return toast('Pedido não encontrado');
+    let f = document.getElementById('printFrame');
+    if (f) f.remove();
+    f = document.createElement('iframe'); f.id = 'printFrame';
+    f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    document.body.appendChild(f);
+    f.contentDocument.open(); f.contentDocument.write(receipt(o)); f.contentDocument.close();
+    setTimeout(() => { f.contentWindow.focus(); f.contentWindow.print(); }, 250);
+  }
+  async function printById(id) { if (!ORD[id]) { try { cache((await api('/admin/orders/live')).orders); } catch {} } printOrder(ORD[id]); }
+  api('/admin/settings').then((s) => s.store_name && (storeName = s.store_name)).catch(() => {});
 
   async function api(path, opt = {}) {
     const r = await fetch(API + path, { ...opt, headers: opt.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }, body: opt.body && !(opt.body instanceof FormData) ? JSON.stringify(opt.body) : opt.body });
@@ -131,14 +173,16 @@
 
     async aovivo() {
       view.innerHTML = `<div class="live-top"><span class="live-dot"></span><b>AO VIVO</b><span class="muted" id="liveInfo">atualiza sozinho a cada 8 segundos</span><span class="spacer"></span>
+        <button class="btn btn-ghost btn-sm" id="apBtn">${autoPrint() ? '🖨 Impressão automática: LIGADA' : '🖨 Impressão automática: desligada'}</button>
         <button class="btn btn-ghost btn-sm" id="soundBtn">${soundOn ? '🔔 Som ligado' : '🔕 Ativar som'}</button></div>
         <div id="liveList" class="live-feed"></div>`;
       $('#soundBtn').onclick = () => { soundOn = !soundOn; localStorage.setItem('nsd_sound', soundOn ? '1' : '0'); if (soundOn) ding(); $('#soundBtn').textContent = soundOn ? '🔔 Som ligado' : '🔕 Ativar som'; };
+      $('#apBtn').onclick = () => { localStorage.setItem('nsd_autoprint', autoPrint() ? '0' : '1'); $('#apBtn').textContent = autoPrint() ? '🖨 Impressão automática: LIGADA' : '🖨 Impressão automática: desligada'; toast(autoPrint() ? 'Vai imprimir sozinho ao aceitar o pedido' : 'Impressão automática desligada'); };
       const mins = (d) => Math.max(0, Math.round((Date.now() - new Date(d)) / 60000));
       const NEXT = { aguardando: ['preparo', '👨‍🍳 Em preparação'], confirmado: ['preparo', '👨‍🍳 Em preparação'], preparo: ['saiu', '🛵 Pedido a caminho'], saiu: ['entregue', '✅ Entregue'] };
       const load = async () => {
         if (!document.getElementById('liveList')) return;
-        const d = await api('/admin/orders/live');
+        const d = await api('/admin/orders/live'); cache(d.orders);
         const rank = (o) => ({ aguardando: 0, confirmado: 1, preparo: 1, saiu: 2, entregue: 3, cancelado: 4 }[o.status] ?? 5);
         d.orders.sort((x, y) => rank(x) - rank(y) || new Date(y.created_at) - new Date(x.created_at));
         const seenBefore = window._liveSeen || new Set(); window._liveSeen = new Set(d.orders.map((o) => o.id));
@@ -156,14 +200,18 @@
           <div class="actions">${NEXT[o.status] ? `<button class="btn btn-primary btn-sm" data-go="${NEXT[o.status][0]}">${NEXT[o.status][1]}</button>` : ''}
             <select class="btn btn-ghost btn-sm" data-set><option value="">Alterar…</option>${Object.entries(STATUS).filter(([k]) => k !== o.status).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join('')}</select>
             ${o.customer_phone ? `<a class="btn btn-ghost btn-sm" target="_blank" href="https://wa.me/55${o.customer_phone.replace(/^55/, '')}">WhatsApp</a>` : ''}
+            <button class="btn btn-ghost btn-sm" data-print>🖨 Imprimir</button>
             <button class="btn btn-ghost btn-sm" data-del>Excluir</button></div></div>`).join('') || '<p class="muted">Nenhum pedido hoje ainda.</p>';
       };
       const setSt = async (id, st) => {
         if (st === 'cancelado' && !confirm('Cancelar pedido? Se já confirmado, o estoque volta.')) return;
-        await api('/admin/orders/' + id, { method: 'PUT', body: { status: st } }); toast('Status atualizado ✓'); load();
+        await api('/admin/orders/' + id, { method: 'PUT', body: { status: st } }); toast('Status atualizado ✓');
+        if (st === 'preparo' && autoPrint()) printById(id);
+        load();
       };
       $('#liveList').onclick = async (e) => {
         const card = e.target.closest('[data-id]'); if (!card) return; const id = card.dataset.id;
+        if (e.target.hasAttribute('data-print')) printById(id);
         if (e.target.dataset.go) setSt(id, e.target.dataset.go);
         if (e.target.hasAttribute('data-del') && confirm('Excluir este pedido de vez? O estoque volta e o lançamento financeiro some.')) { await api('/admin/orders/' + id, { method: 'DELETE' }); toast('Pedido excluído'); load(); }
       };
@@ -174,7 +222,7 @@
     async pedidos() {
       view.innerHTML = `<div class="toolbar"><div class="field"><label>Status</label><select id="st"><option value="">Todos</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join('')}</select></div>${periodSelect()}<a class="btn btn-primary" href="#venda">+ Venda manual</a></div><div id="list"></div>`;
       const load = async () => {
-        const [from, to] = range(); const rows = await api(`/admin/orders?status=${$('#st').value}&from=${from}&to=${to}`);
+        const [from, to] = range(); const rows = await api(`/admin/orders?status=${$('#st').value}&from=${from}&to=${to}`); cache(rows);
         $('#list').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Itens</th><th>Valores</th><th>Status</th><th>Pagamento</th><th>Ações</th></tr></thead><tbody>
           ${rows.map((o) => `<tr><td><b>#${String(o.order_number).padStart(6, '0')}</b><br><span class="muted">${dt(o.created_at)}<br>${o.source === 'manual' ? 'Manual' : 'Site'}</span></td>
             <td>${esc(o.customer_name)}<br><span class="muted">${esc(o.customer_phone || '')}<br>${esc(o.neighborhood_name || '')} ${esc(o.address || '')}</span></td>
@@ -185,12 +233,14 @@
               <select data-status="${o.id}" class="btn btn-ghost btn-sm">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${k === o.status ? 'selected' : ''}>${v[0]}</option>`).join('')}</select>
               ${o.status !== 'cancelado' ? `<button class="btn btn-ghost btn-sm" data-pay="${o.id}" data-cur="${o.payment_status}" data-st="${o.status}">${o.payment_status === 'pago' ? 'Marcar pendente' : 'Marcar pago'}</button>` : ''}
               ${o.customer_phone ? `<a class="btn btn-ghost btn-sm" target="_blank" href="https://wa.me/55${o.customer_phone.replace(/^55/, '')}">WhatsApp</a>` : ''}
+              <button class="btn btn-ghost btn-sm" data-print="${o.id}">🖨 Imprimir</button>
               <button class="btn btn-ghost btn-sm" data-del="${o.id}">Excluir</button></div></td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nenhum pedido.</td></tr>'}
           </tbody></table></div>`;
         $('#list').querySelectorAll('[data-status]').forEach((s) => (s.onchange = async () => {
           if (s.value === 'cancelado' && !confirm('Cancelar pedido? Se já confirmado, o estoque será estornado.')) return load();
           await api('/admin/orders/' + s.dataset.status, { method: 'PUT', body: { status: s.value } }); toast('Status atualizado ✓'); load();
         }));
+        $('#list').querySelectorAll('[data-print]').forEach((b) => (b.onclick = () => printOrder(ORD[b.dataset.print])));
         $('#list').querySelectorAll('[data-del]').forEach((b) => (b.onclick = async () => {
           if (!confirm('Excluir este pedido de vez? O estoque volta e o lançamento financeiro some.')) return;
           await api('/admin/orders/' + b.dataset.del, { method: 'DELETE' }); toast('Pedido excluído'); load();
@@ -228,8 +278,13 @@
       $('#vf').onsubmit = async (e) => {
         e.preventDefault(); const f = e.target;
         const items = [...document.querySelectorAll('.vline')].map((l) => ({ product_id: l.querySelector('select').value, quantity: l.querySelector('[name=quantity]').value, unit_price: l.querySelector('[name=unit_price]').value }));
+        try { cache((await api('/admin/orders/live')).orders); } catch {}
+        const before = new Set(Object.keys(ORD));
         await api('/admin/orders/manual', { method: 'POST', body: { items, customer_name: f.customer_name.value, customer_phone: f.customer_phone.value, payment_method: f.payment_method.value, delivery_fee: f.delivery_fee.value, paid: f.paid.value === '1', notes: f.notes.value } });
-        toast('Venda registrada e estoque baixado ✓'); pages.venda();
+        toast('Venda registrada e estoque baixado ✓');
+        try { const lv = (await api('/admin/orders/live')).orders; cache(lv); const nw = lv.filter((o) => !before.has(String(o.id))).sort((a, b) => b.id - a.id)[0];
+          if (nw) { if (autoPrint()) printOrder(nw); else if (confirm('Venda registrada. Imprimir comprovante?')) printOrder(nw); } } catch {}
+        pages.venda();
       };
     },
 
@@ -564,6 +619,11 @@
       ${sec('🧾', 'Pedidos / Vendas', 'pedidos', `<ul><li>Lista completa com filtro por status e período.</li><li>Mostra itens, subtotal, entrega, total, custo, lucro, forma de pagamento e troco.</li>
         <li>Mude o status, marque como <b>pago/pendente</b> (gera a entrada no financeiro), abra o WhatsApp do cliente ou exclua.</li>
         <li>O estoque só é descontado quando o pedido é confirmado (em preparação, a caminho ou entregue). Cancelar devolve o estoque.</li></ul>`)}
+      ${sec('🖨', 'Imprimir pedidos (impressora térmica 58mm)', 'aovivo', `<p>Funciona com impressora térmica de 58mm (USB ou Bluetooth, ESC/POS) instalada no computador/celular.</p><ol>
+        <li>Instale a impressora no sistema e deixe-a como <b>impressora padrão</b>, papel 58mm, margens “nenhuma”.</li>
+        <li>Em <b>Pedidos ao vivo</b>, <b>Pedidos / Vendas</b> e no aviso de novo pedido há o botão <b>🖨 Imprimir</b>: sai um cupom organizado com número, cliente, endereço, itens, total, pagamento, troco e observações.</li>
+        <li>Ligue <b>🖨 Impressão automática</b> em Pedidos ao vivo: o cupom imprime sozinho quando você clica em <b>Em preparação</b> (aceitar) e ao registrar uma <b>Venda manual</b>.</li>
+        <li>Para imprimir sem a janela de confirmação, abra o painel no Google Chrome com a opção <code>--kiosk-printing</code> (atalho do Chrome).</li></ol>`)}
       ${sec('➕', 'Venda manual', 'venda', `<p>Para vendas no balcão ou pedidos feitos por telefone. Escolha os produtos e quantidades, cliente (opcional), forma de pagamento e taxa de entrega. Já desconta o estoque e, se marcado como pago, lança no financeiro.</p>`)}
       ${sec('⚡', 'Baixa rápida', 'baixa', `<p>Botões grandes −1, −2, −5, −10 para tirar do estoque na hora (consumo, quebra, brinde). Ideal para usar no celular.</p>`)}
       ${sec('📦', 'Estoque', 'estoque', `<ul><li>Veja quantidade, custo, valor em estoque e itens esgotados.</li>
@@ -685,10 +745,11 @@
         ${o.notes ? `<div class="muted">Obs: ${esc(o.notes)}</div>` : ''}
         <div class="row"><span>Total</span><b style="font-size:1.4rem">${brl(o.total)}</b></div>
         <div class="row"><span>Pagamento</span><b>${esc(o.payment_method || '—')}</b></div>${troco(o)}
-        <div class="actions"><a class="btn btn-primary" href="#aovivo" data-popclose>VER PEDIDO</a><button class="btn btn-ghost" data-popclose>Fechar</button></div></div>`;
+        <div class="actions"><a class="btn btn-primary" href="#aovivo" data-popclose>VER PEDIDO</a><button class="btn btn-ghost" data-popprint>🖨 Imprimir</button><button class="btn btn-ghost" data-popclose>Fechar</button></div></div>`;
       m.classList.add('show');
       clearInterval(popupDing); popupDing = setInterval(() => soundOn && ding(), 6000);
-      m.onclick = (e) => { if (e.target === m || e.target.closest('[data-popclose]')) { m.classList.remove('show'); clearInterval(popupDing); } };
+      cache([o]);
+      m.onclick = (e) => { if (e.target.closest('[data-popprint]')) return printOrder(o); if (e.target === m || e.target.closest('[data-popclose]')) { m.classList.remove('show'); clearInterval(popupDing); } };
     } catch {}
   }
   async function watch() {
