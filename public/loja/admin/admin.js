@@ -623,7 +623,8 @@
         <li>Instale a impressora no sistema e deixe-a como <b>impressora padrão</b>, papel 58mm, margens “nenhuma”.</li>
         <li>Em <b>Pedidos ao vivo</b>, <b>Pedidos / Vendas</b> e no aviso de novo pedido há o botão <b>🖨 Imprimir</b>: sai um cupom organizado com número, cliente, endereço, itens, total, pagamento, troco e observações.</li>
         <li>Ligue <b>🖨 Impressão automática</b> em Pedidos ao vivo: o cupom imprime sozinho quando você clica em <b>Em preparação</b> (aceitar) e ao registrar uma <b>Venda manual</b>.</li>
-        <li>Para imprimir sem a janela de confirmação, abra o painel no Google Chrome com a opção <code>--kiosk-printing</code> (atalho do Chrome).</li></ol>`)}
+        <li>Para imprimir <b>sem a janela de confirmação</b>, vá em <b>Configurações → 🖨 Impressora térmica 58mm</b> e baixe o <b>atalho do Chrome</b> (Windows ou Linux). Abrindo o painel por esse atalho, o cupom sai direto na impressora, sem perguntar. Sem o atalho, o navegador sempre mostra a janela de impressão.</li>
+        <li>Na mesma tela há o botão <b>🖨 Imprimir cupom de teste</b> para conferir se a impressora está certa.</li></ol>`)}
       ${sec('➕', 'Venda manual', 'venda', `<p>Para vendas no balcão ou pedidos feitos por telefone. Escolha os produtos e quantidades, cliente (opcional), forma de pagamento e taxa de entrega. Já desconta o estoque e, se marcado como pago, lança no financeiro.</p>`)}
       ${sec('⚡', 'Baixa rápida', 'baixa', `<p>Botões grandes −1, −2, −5, −10 para tirar do estoque na hora (consumo, quebra, brinde). Ideal para usar no celular.</p>`)}
       ${sec('📦', 'Estoque', 'estoque', `<ul><li>Veja quantidade, custo, valor em estoque e itens esgotados.</li>
@@ -685,6 +686,10 @@
           <div class="field full"><label>Modo</label><select name="store_open"><option value="auto">Automático pelo horário</option><option value="1" ${s.store_open === '1' ? 'selected' : ''}>Forçar ABERTO</option><option value="0" ${s.store_open === '0' ? 'selected' : ''}>Forçar FECHADO</option></select></div>
           <div class="field full"><label>Produtos esgotados na loja</label><select name="show_sold_out"><option value="1">Mostrar como ESGOTADO</option><option value="0" ${s.show_sold_out === '0' ? 'selected' : ''}>Esconder</option></select></div></div>
         <div class="panel form"><h3 class="field full">Banner principal (promoção / destaque)</h3><div class="field full"><label>Mostrar banner na loja</label><select name="hero_enabled"><option value="1">✅ Ativado</option><option value="0" ${s.hero_enabled === '0' ? 'selected' : ''}>⛔ Desativado</option></select></div>${f('hero_title', 'Título')}${f('hero_subtitle', 'Subtítulo')}${imgField('hero_image', s.hero_image, 'Imagem do banner')}</div>
+        <div class="panel form"><h3 class="field full">🖨 Impressora térmica 58mm</h3>
+          <p class="muted">Por segurança, o navegador <b>sempre mostra a janela de impressão</b> ao clicar em 🖨 Imprimir. Para o cupom sair <b>direto na impressora, sem perguntar nada</b>, abra o painel pelo atalho abaixo (Chrome em modo impressão direta).</p>
+          <div class="full ptbtns"><button class="btn btn-ghost" type="button" id="dlBat">⬇ Atalho Windows (.bat)</button><button class="btn btn-ghost" type="button" id="dlDesk">⬇ Atalho Linux (.desktop)</button><button class="btn btn-ghost" type="button" id="testPrint">🖨 Imprimir cupom de teste</button></div>
+          <p class="muted">Mac: feche o Chrome e abra no Terminal com <code>/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --kiosk-printing</code>.<br>Deixe a impressora térmica como <b>padrão</b> do sistema, papel 58mm e margens “nenhuma”.</p></div>
         <div class="panel form"><h3 class="field full">Identidade visual</h3>${imgField('logo', s.logo, 'Logo principal')}${imgField('favicon', s.favicon, 'Favicon (ícone da aba)')}</div>
         <div class="field full"><button class="btn btn-primary" type="submit">SALVAR CONFIGURAÇÕES</button></div></form>
         <div class="panel"><h3>Alterar minha senha</h3><form id="pw" class="toolbar"><div class="field"><label>Senha atual</label><input name="current" type="password" required></div><div class="field"><label>Nova senha (8+)</label><input name="next" type="password" minlength="8" required></div><button class="btn btn-ghost">Alterar senha</button></form></div>
@@ -700,6 +705,13 @@
             <button class="btn btn-danger">ZERAR DADOS SELECIONADOS</button>
           </form></div>`;
       bindImgFields(view);
+      const appUrl = location.origin + '/admin/';
+      const saveFile = (name, text, mime) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: mime })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); toast('Arquivo baixado ✓'); };
+      $('#dlBat').onclick = () => saveFile('impressao-direta-nosilva.bat',
+        '@echo off\r\nset "CHROME="\r\nif exist "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" set "CHROME=C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"\r\nif exist "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe" set "CHROME=C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe"\r\nif not defined CHROME set "CHROME=chrome.exe"\r\nstart "" "%CHROME%" --kiosk-printing --new-window "' + appUrl + '"\r\n', 'application/octet-stream');
+      $('#dlDesk').onclick = () => saveFile('nosilva-drinks.desktop',
+        '[Desktop Entry]\nType=Application\nName=No Silva Drinks (impressao direta)\nComment=Abre o painel imprimindo direto na impressora\nExec=google-chrome --kiosk-printing --new-window "' + appUrl + '"\nTerminal=false\nCategories=Office;\n', 'text/plain');
+      $('#testPrint').onclick = () => printOrder({ order_number: 999999, created_at: new Date().toISOString(), source: 'manual', customer_name: 'Cupom de teste', customer_phone: '', address: 'Rua das Flores, 123', neighborhood_name: 'Centro', items: [{ quantity: 1, name: 'Heineken 330ml', unit_price: 9.9 }, { quantity: 2, name: 'Coca-Cola 2L', unit_price: 7.5, promotion: 'PROMO DO DIA' }], subtotal: 24.9, delivery_fee: 5, total: 29.9, payment_method: 'Dinheiro', change_for: 50, notes: 'Cupom de teste da impressora' });
       view.querySelectorAll('.wk select').forEach((sel) => (sel.onchange = () => sel.parentElement.querySelectorAll('input').forEach((i) => (i.disabled = sel.value === '0'))));
       $('#cfg').onsubmit = async (e) => { e.preventDefault();
         e.target.week_hours.value = JSON.stringify([...view.querySelectorAll('.wk')].map((w) => ({ dow: +w.dataset.dow, open: w.querySelector('[data-k=open]').value === '1', from: w.querySelector('[data-k=from]').value || '00:00', to: w.querySelector('[data-k=to]').value || '23:59' }))); await api('/admin/settings', { method: 'PUT', body: Object.fromEntries(new FormData(e.target)) }); toast('Configurações salvas ✓'); pages.configuracoes(); };
