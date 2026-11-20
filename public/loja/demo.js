@@ -126,7 +126,7 @@
     }
     if (path === 'auth/logout') { db.logged = false; return { ok: true }; }
     // ---------- público ----------
-    if (path === 'public/version') return { version: '2026.11.16-2 · impressão direta (atalho sem janela)' };
+    if (path === 'public/version') return { version: '2026.11.20-1 · cupom com fonte grossa e maior' };
     if (path === 'public/store') {
       var show = s.show_sold_out === '1';
       return {

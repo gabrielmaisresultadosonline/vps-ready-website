@@ -20,11 +20,11 @@
     const items = (o.items || []).map((i) => `<tr><td class="q">${i.quantity}x</td><td>${esc(i.name)}${i.promotion ? `<br><small>* ${esc(i.promotion)}</small>` : ''}</td><td class="r">${brl((i.unit_price || 0) * i.quantity)}</td></tr>`).join('');
     const troc = +o.change_for > 0 ? `<div class="ln2"><span>Troco para</span><b>${brl(o.change_for)}</b></div><div class="ln2 big"><span>LEVAR TROCO</span><b>${brl(o.change_for - o.total)}</b></div>` : /dinheiro/i.test(o.payment_method || '') ? '<div class="c">Sem troco</div>' : '';
     return `<!doctype html><html><head><meta charset="utf-8"><title>Pedido ${n}</title><style>
-      @page{size:58mm auto;margin:0}*{box-sizing:border-box}
-      body{width:58mm;margin:0;padding:2mm 3mm;font:12px/1.3 'Courier New',monospace;color:#000;background:#fff}
-      h1{font-size:15px;text-align:center;margin:0 0 2px}.c{text-align:center}.big{font-size:14px;font-weight:bold}
-      .hr{border-top:1px dashed #000;margin:4px 0}table{width:100%;border-collapse:collapse}td{vertical-align:top;padding:1px 0}
-      .q{width:7mm;font-weight:bold}.r{text-align:right;white-space:nowrap}.ln2{display:flex;justify-content:space-between;gap:4px}small{font-size:10px}
+      @page{size:58mm auto;margin:0}*{box-sizing:border-box;font-weight:700}
+      body{width:58mm;margin:0;padding:2mm 3mm;font:bold 14px/1.35 Arial,Helvetica,sans-serif;color:#000;background:#fff}
+      h1{font-size:19px;text-align:center;margin:0 0 2px}.c{text-align:center}.big{font-size:17px;font-weight:900}
+      .hr{border-top:1px dashed #000;margin:5px 0}table{width:100%;border-collapse:collapse}td{vertical-align:top;padding:2px 0}
+      .q{width:9mm;font-weight:900}.r{text-align:right;white-space:nowrap}.ln2{display:flex;justify-content:space-between;gap:4px}small{font-size:12px}
     </style></head><body>
       <h1>${esc(storeName)}</h1><div class="c">${dt(o.created_at)}</div>
       <div class="c big">PEDIDO #${n}</div><div class="c">${o.source === 'manual' ? 'VENDA MANUAL' : 'PEDIDO PELO SITE'}</div>
@@ -496,11 +496,11 @@
         return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size * scale}" height="${size * scale}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
       };
       const printHtml = (u) => `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>QR Code do cardápio</title><style>
-        @page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif}
+        @page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;font-weight:700}
         .sheet{max-width:170mm;margin:0 auto;text-align:center;padding:10mm 6mm;border:2px solid #111;border-radius:6mm}
-        h1{font-size:30pt;margin:0 0 4mm;letter-spacing:.02em}.brand{font-size:14pt;font-weight:700;margin-bottom:8mm;color:#444}
+        h1{font-size:32pt;font-weight:900;margin:0 0 4mm;letter-spacing:.02em}.brand{font-size:15pt;font-weight:900;margin-bottom:8mm;color:#111}
         .qr{width:110mm;max-width:100%;margin:0 auto}.qr svg{width:100%;height:auto;display:block}
-        p{font-size:15pt;line-height:1.4;margin:8mm 0 3mm}.url{font-size:11pt;color:#555;word-break:break-all}</style></head><body>
+        p{font-size:16pt;font-weight:700;line-height:1.4;margin:8mm 0 3mm}.url{font-size:12pt;font-weight:700;color:#111;word-break:break-all}</style></head><body>
         <div class="sheet"><h1>ACESSE NOSSO CARDÁPIO</h1><div class="brand">${esc(s.store_name || 'No Silva Drinks')}</div><div class="qr">${svgOf(u)}</div>
         <p>Aponte a câmera do seu celular e confira nosso cardápio, promoções e novidades!</p><div class="url">${esc(u)}</div></div></body></html>`;
       const render = () => {
